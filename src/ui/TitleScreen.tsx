@@ -12,7 +12,7 @@ export function TitleScreen({ onPlay }: Props) {
         <p className="title-kicker">NOVA CITY</p>
         <h1>VICEBLOCK</h1>
         <p className="title-sub">SOUTH DOCKS · 3D</p>
-        <p className="title-tag">One pier. One strip. Dusk till the heat dies.</p>
+        <p className="title-tag">One pier. One line. Swing the South Docks.</p>
         <button type="button" className="title-play" onClick={onPlay}>PLAY</button>
         <div className="title-wallet">
           <WalletMultiButton />

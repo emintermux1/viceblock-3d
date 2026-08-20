@@ -19,13 +19,12 @@ export function HUD({ hud, onTapMusic }: Props) {
           <b>{hud.missionTitle}</b>
           <span>{hud.missionHint}</span>
         </div>
+        <div className={"hud-line" + (hud.canAttach ? " ready" : "")}>
+          {hud.canAttach ? "SALIN READY" : hud.mode.toUpperCase()}
+          <em>SPD {Math.round(hud.speed)}</em>
+        </div>
       </div>
       <div className="hud-tr">
-        <div className="hud-money">{"$" + hud.cash.toLocaleString()}</div>
-        <div className="hud-weapon">
-          {hud.reloading ? "RELOAD" : hud.ammo + " / " + hud.reserve}
-        </div>
-        {hud.inCar ? <div className="hud-carhp">CAR {Math.round(hud.vehicleHp)}</div> : null}
         {hud.localSave ? <div className="hud-save">LOCAL SAVE</div> : null}
         <button
           type="button"

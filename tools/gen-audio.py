@@ -73,4 +73,17 @@ if __name__ == "__main__":
     burst("reload", 0.35, lambda t, i: ((math.sin(2 * math.pi * 2400 * t) * math.exp(-abs(t - 0.04) * 90) if t < 0.12 else 0) * 0.4 + (math.sin(2 * math.pi * 1600 * t) * math.exp(-abs(t - 0.18) * 70) if 0.12 < t < 0.28 else 0) * 0.35))
     burst("melee", 0.18, lambda t, i: (math.sin(2 * math.pi * 70 * t) * math.exp(-t * 18) * 0.7 + ((hash(i * 9) % 1000) / 1000.0 - 0.5) * math.exp(-t * 30) * 0.4))
     burst("empty", 0.08, lambda t, i: math.sin(2 * math.pi * 2100 * t) * math.exp(-t * 40) * 0.25)
+    burst("web", 0.28, lambda t, i: (
+        math.sin(2 * math.pi * (1400 + t * 2200) * t) * math.exp(-t * 10) * 0.38
+        + math.sin(2 * math.pi * (420 + t * 180) * t) * math.exp(-t * 8) * 0.22
+        + ((hash(i * 19) % 1000) / 1000.0 - 0.5) * math.exp(-t * 18) * 0.16
+    ))
+    burst("whoosh", 0.42, lambda t, i: (
+        ((hash(i * 23) % 1000) / 1000.0 - 0.5) * math.exp(-t * 6) * 0.42
+        + math.sin(2 * math.pi * (180 + t * 90) * t) * math.exp(-t * 5) * 0.18
+    ))
+    burst("impact", 0.32, lambda t, i: (
+        math.sin(2 * math.pi * (70 - t * 40) * t) * math.exp(-t * 9) * 0.62
+        + ((hash(i * 11) % 1000) / 1000.0 - 0.5) * math.exp(-t * 14) * 0.28
+    ))
     print("audio", os.listdir(OUT))

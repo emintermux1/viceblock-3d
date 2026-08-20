@@ -6,15 +6,18 @@ import { gestureUnlock, radio, sharedSfx } from "./audio";
 import { buildCity, tickCityArt, type CityData } from "./city";
 import {
   ARREST_R, BAIL, CALL_T, CAR_FRICTION, CAR_HP, CAR_REV, CAR_SPEC, CHAR, COP_DMG,
-  COP_FOOT, COP_SHOT_CD, FENCE, FIRE_CD, GRAVITY, GUN_DMG, GUN_RANGE, INT, JAIL_WAIT,
+  COP_FOOT, COP_SHOT_CD, CRANE_GOAL, FENCE, FIRE_CD, GRAVITY, GUN_DMG, GUN_RANGE, INT, JAIL_WAIT,
   JUMP_VEL, LOC, MAG, MELEE_CD, MELEE_DMG, MELEE_RANGE, PD, PD_OUT, PLAYER_R,
   REGEN_DELAY, REGEN_RATE, RELOAD_T, REPAIR_COST, RESERVE, SAVE_KEY, SEARCH_R0,
   SEARCH_T0, SPAWN_PAD, SPRINT, STAR_MAX, TRACER_LIFE, WALK, WITNESS_R, angWrap,
   clamp, dist2,
 } from "./constants";
 import type { Input } from "./input";
-import { flareTex, lookDir, makeCar, makeCop, makeHero, makePed, mat, tickWalk } from "./meshes";
-import type { AABB, CharacterId, CopState, HudState, InteriorId, MissionId, PedState } from "./types";
+import { flareTex, lookDir, makeCar, makeCop, makeHero, makePed, makeSilk, mat, placeSilk, tickSwingPose, tickWalk } from "./meshes";
+import {
+  nearestWall, pickAnchor, roofY, stepAir, stepSwing, stepZip, SWING_MAX, type Anchor, type SwingRope,
+} from "./swing";
+import type { AABB, CharacterId, CopState, HudState, InteriorId, MissionId, MoveMode, PedState } from "./types";
 import { emptyHud, pointInAABB } from "./types";
 
 type CarKind = "hatch" | "sedan" | "muscle" | "cop";
@@ -43,11 +46,20 @@ export class ViceGame {
   city!: CityData;
   playerMesh!: Mesh;
   player = {
-    x: LOC.spawn.x, y: 0, z: LOC.spawn.z, vy: 0, yaw: 0,
+    x: LOC.spawn.x, y: 0, z: LOC.spawn.z, vx: 0, vy: 0, vz: 0, yaw: 0,
     health: 100, maxHealth: 100, ammo: MAG, reserve: RESERVE,
     fireT: 0, meleeT: 0, reloadT: 0, grounded: true, flash: 0,
     character: "ansem" as CharacterId,
   };
+  mode: MoveMode = "ground";
+  private rope: SwingRope | null = null;
+  private zipTo: Anchor | null = null;
+  private crawlN: { nx: number; nz: number } | null = null;
+  private silk!: Mesh;
+  private aimOrb!: Mesh;
+  private aim: Anchor | null = null;
+  private stuns = 0;
+  private launched = false;
   camYaw = 0.95;
   camPitch = 0.22;
   camDist = 8.6;
@@ -63,7 +75,7 @@ export class ViceGame {
   lastSeen = -999;
   lastCombat = -999;
   time = 0;
-  mission: MissionId = "jack";
+  mission: MissionId = "launch";
   prompt = "";
   subtitle = "";
   fade = 0;
@@ -103,6 +115,7 @@ export class ViceGame {
   camDip = 0;
   private wasGrounded = true;
   private stepT = 0;
+  private ghostArmed = false;
   hasSave = false;
   private saveAcc = 0;
   private parkedRepair: Car | null = null;
@@ -126,6 +139,10 @@ export class ViceGame {
     this.city = buildCity(this.scene);
     this.playerMesh = makeHero(this.scene, character);
     this.playerMesh.position.set(this.player.x, 0, this.player.z);
+    this.silk = makeSilk(this.scene, CHAR[character].color);
+    this.aimOrb = MeshBuilder.CreateSphere("aim", { diameter: 0.55, segments: 6 }, this.scene);
+    this.aimOrb.material = mat(this.scene, CHAR[character].color, 0.9);
+    this.aimOrb.setEnabled(false);
     this.marker = MeshBuilder.CreateTorus("mk", { diameter: 3.2, thickness: 0.18, tessellation: 20 }, this.scene);
     this.marker.material = mat(this.scene, "#ffc83d", 0.8);
     this.spawnCars();
@@ -159,7 +176,7 @@ export class ViceGame {
   private persist() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify({
-        v: 1, cash: this.cash, mission: this.mission, character: this.player.character, stars: this.stars,
+        v: 2, cash: this.cash, mission: this.mission, character: this.player.character, stars: this.stars, stuns: this.stuns,
       }));
       this.hasSave = true;
     } catch { /* ignore */ }
@@ -169,18 +186,17 @@ export class ViceGame {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return;
-      const s = JSON.parse(raw) as { v?: number; cash?: number; mission?: MissionId; stars?: number };
-      if (s.v !== 1) return;
+      const s = JSON.parse(raw) as { v?: number; cash?: number; mission?: MissionId; stars?: number; stuns?: number };
+      if (s.v !== 2) return;
       if (typeof s.cash === "number") this.cash = s.cash;
-      if (s.mission === "jack" || s.mission === "deliver" || s.mission === "rob" || s.mission === "escape" || s.mission === "free") {
+      if (s.mission === "launch" || s.mission === "crane" || s.mission === "sweep" || s.mission === "ghost" || s.mission === "free") {
         this.mission = s.mission;
       }
+      if (this.mission === "ghost" || this.mission === "free") this.ghostArmed = true;
       if (typeof s.stars === "number") this.stars = clamp(s.stars, 0, STAR_MAX);
+      if (typeof s.stuns === "number") this.stuns = s.stuns;
       this.hasSave = true;
-      if (this.mission !== "jack") this.jacked = true;
-      if (this.mission === "rob" || this.mission === "escape" || this.mission === "free") this.delivered = true;
-      if (this.mission === "escape" || this.mission === "free") this.storeRobbed = true;
-      if (this.mission === "free") this.escaped = true;
+      if (this.mission !== "launch") this.launched = true;
     } catch { /* ignore */ }
   }
 
@@ -288,11 +304,15 @@ export class ViceGame {
       }
     }
 
-    if (this.input.enterPressed && this.enterLock <= 0) this.tryEnterExit();
+    if (this.input.enterPressed && this.enterLock <= 0 && this.interior === "jail") this.tryEnterExit();
     this.tickHotwire(dt);
-    if (this.interior === "jail") this.tickJail(dt);
-    else if (this.drive) this.driveCar(dt);
-    else this.walk(dt);
+    if (this.interior === "jail") {
+      this.tickJail(dt);
+      this.walkFree(dt, 0.7);
+      this.mode = "ground";
+    } else {
+      this.locomote(dt);
+    }
 
     this.updatePeds(dt);
     this.updateCops(dt);
@@ -308,8 +328,275 @@ export class ViceGame {
     this.wantedDecay(dt);
     this.saveAcc += dt;
     if (this.saveAcc > 4) { this.saveAcc = 0; this.persist(); }
-    sharedSfx.engineDrive(!!this.drive && !this.drive.wrecked, this.drive?.speed ?? 0);
+    sharedSfx.engineDrive(false, 0);
     sharedSfx.sirenOn(this.stars > 0 && this.cops.some((c) => c.state === "chase"));
+  }
+
+  private locomote(dt: number) {
+    const p = this.player;
+    const ins = this.input;
+
+    if (this.interior !== "street") {
+      this.walkFree(dt, 1);
+      this.mode = "ground";
+      this.rope = null;
+      this.zipTo = null;
+      this.silk.setEnabled(false);
+      return;
+    }
+
+    this.aim = pickAnchor(
+      p.x, p.y + 1.05, p.z, p.vx, p.vy, p.vz,
+      this.camYaw, this.camPitch, this.city.anchors,
+    );
+
+    if (this.mode === "zip") {
+      if (!this.zipTo) {
+        this.mode = "air";
+      } else {
+        const done = stepZip(p, this.zipTo, dt);
+        this.drawSilk(this.zipTo.x, this.zipTo.y, this.zipTo.z);
+        this.clampWorld();
+        this.collideBuildings();
+        if (done) {
+          this.zipTo = null;
+          this.rope = null;
+          this.mode = "air";
+        }
+        this.maybeLand();
+        this.faceVelocity();
+        return;
+      }
+    }
+
+    if (this.mode === "crawl") {
+      this.stepCrawl(dt);
+      return;
+    }
+
+    const wantSwing = ins.swingHeld || ins.jumpHeld;
+    if (ins.zipPressed && this.aim) {
+      this.zipTo = { ...this.aim };
+      this.mode = "zip";
+      this.rope = {
+        ax: this.aim.x, ay: this.aim.y, az: this.aim.z,
+        length: Math.max(4, Math.hypot(p.x - this.aim.x, p.y - this.aim.y, p.z - this.aim.z)),
+      };
+      this.launched = true;
+      sharedSfx.web();
+      return;
+    }
+
+    if (this.mode === "swing") {
+      if (!wantSwing || !this.rope) {
+        if (this.rope && p.vy > 1) p.vy += 3.2;
+        this.rope = null;
+        this.mode = "air";
+        this.silk.setEnabled(false);
+        sharedSfx.whoosh();
+      } else {
+        stepSwing(p, this.rope, ins.moveX, ins.moveY, this.camYaw, dt);
+        this.drawSilk(this.rope.ax, this.rope.ay, this.rope.az);
+        this.clampWorld();
+        this.collideBuildings();
+        this.maybeLand();
+        this.maybeCrawl();
+        this.faceVelocity();
+        return;
+      }
+    }
+
+    if (this.mode === "ground") {
+      this.walkRooftops(dt);
+      if (ins.jumpPressed) {
+        p.vy = JUMP_VEL;
+        p.grounded = false;
+        this.mode = "air";
+        sharedSfx.whoosh();
+      } else if (wantSwing && this.aim) {
+        p.vy = JUMP_VEL * 0.7;
+        p.grounded = false;
+        this.attachSwing();
+      }
+      return;
+    }
+
+    stepAir(p, ins.moveX, ins.moveY, this.camYaw, dt);
+    this.clampWorld();
+    if (wantSwing && this.aim) this.attachSwing();
+    this.collideBuildings();
+    this.maybeLand();
+    this.maybeCrawl();
+    this.faceVelocity();
+  }
+
+  private attachSwing() {
+    const p = this.player;
+    const a = this.aim;
+    if (!a) return;
+    const dist = Math.hypot(p.x - a.x, p.y - a.y, p.z - a.z);
+    this.rope = { ax: a.x, ay: a.y, az: a.z, length: Math.max(5.2, dist * 0.92) };
+    this.mode = "swing";
+    this.launched = true;
+    const pull = 2.6;
+    const dx = a.x - p.x;
+    const dy = a.y - p.y;
+    const dz = a.z - p.z;
+    const d = Math.hypot(dx, dy, dz) || 1;
+    p.vx += (dx / d) * pull;
+    p.vy += (dy / d) * pull * 0.38;
+    p.vz += (dz / d) * pull;
+    sharedSfx.web();
+    this.drawSilk(a.x, a.y, a.z);
+  }
+
+  private drawSilk(x: number, y: number, z: number) {
+    placeSilk(this.silk, this.player.x + 0.16, this.player.y + 1.18, this.player.z, x, y, z);
+  }
+
+  private faceVelocity() {
+    const p = this.player;
+    if (Math.hypot(p.vx, p.vz) > 0.85) p.yaw = Math.atan2(p.vx, p.vz);
+    else p.yaw = this.camYaw;
+  }
+
+  private clampWorld() {
+    const p = this.player;
+    p.x = clamp(p.x, -94, 94);
+    p.z = clamp(p.z, -80, 96);
+    if (p.y < 0) {
+      p.y = 0;
+      if (p.vy < 0) p.vy = 0;
+    }
+  }
+
+  private walkRooftops(dt: number) {
+    const p = this.player;
+    const kit = CHAR[p.character];
+    const speed = (this.input.sprint ? SPRINT : WALK) * kit.speed;
+    const fwd = lookDir(this.camYaw, 0);
+    const right = new Vector3(fwd.z, 0, -fwd.x);
+    const vx = (fwd.x * -this.input.moveY + right.x * this.input.moveX) * speed;
+    const vz = (fwd.z * -this.input.moveY + right.z * this.input.moveX) * speed;
+    if (this.input.moveX !== 0 || this.input.moveY !== 0) p.yaw = Math.atan2(vx, vz);
+    p.vx = vx;
+    p.vz = vz;
+    p.vy = 0;
+    const nx = p.x + vx * dt;
+    const nz = p.z + vz * dt;
+    const floor = roofY(p.x, p.z, this.city.colliders);
+    const next = roofY(nx, nz, this.city.colliders);
+    if (floor > 0.45 && floor - next > 1.35) {
+      p.x = nx;
+      p.z = nz;
+      p.y = floor;
+      p.grounded = false;
+      this.mode = "air";
+    } else if (next > 0.15) {
+      p.x = clamp(nx, -94, 94);
+      p.z = clamp(nz, -80, 96);
+      p.y = next;
+      p.grounded = true;
+    } else {
+      if (!this.blocked(nx, p.z, PLAYER_R) && this.walkable(nx, p.z)) p.x = nx;
+      if (!this.blocked(p.x, nz, PLAYER_R) && this.walkable(p.x, nz)) p.z = nz;
+      p.y = 0;
+      p.grounded = true;
+      if (p.z > this.city.waterZ && !pointInAABB(p.x, p.z, this.city.pier, 0.2)) {
+        p.vx *= 0.55;
+        p.vz *= 0.55;
+      }
+    }
+    this.playerMesh.setEnabled(true);
+    const moving = Math.hypot(vx, vz) > 0.4;
+    this.stepT -= dt;
+    if (moving && this.stepT <= 0) {
+      this.stepT = 0.36;
+      sharedSfx.footstep(this.surfaceRate());
+    }
+  }
+
+  private collideBuildings() {
+    const p = this.player;
+    for (const b of this.city.colliders) {
+      if (p.y >= b.maxY - 0.12) continue;
+      if (p.x < b.minX - 0.48 || p.x > b.maxX + 0.48 || p.z < b.minZ - 0.48 || p.z > b.maxZ + 0.48) continue;
+      const left = p.x - b.minX;
+      const right = b.maxX - p.x;
+      const back = p.z - b.minZ;
+      const fwd = b.maxZ - p.z;
+      const m = Math.min(left, right, back, fwd);
+      if (m === left) { p.x = b.minX - 0.5; p.vx *= -0.28; }
+      else if (m === right) { p.x = b.maxX + 0.5; p.vx *= -0.28; }
+      else if (m === back) { p.z = b.minZ - 0.5; p.vz *= -0.28; }
+      else { p.z = b.maxZ + 0.5; p.vz *= -0.28; }
+    }
+  }
+
+  private maybeLand() {
+    const p = this.player;
+    const floor = roofY(p.x, p.z, this.city.colliders);
+    if (p.y <= floor + 0.14 && p.vy <= 2.6) {
+      p.y = floor;
+      p.vy = 0;
+      if (this.mode === "air" || this.mode === "swing" || this.mode === "zip") {
+        const spd = Math.hypot(p.vx, p.vz);
+        if (spd > 16) sharedSfx.impact();
+        this.mode = "ground";
+        this.rope = null;
+        this.zipTo = null;
+        this.silk.setEnabled(false);
+        p.grounded = true;
+      }
+    }
+  }
+
+  private maybeCrawl() {
+    if (this.mode !== "air") return;
+    const p = this.player;
+    if (p.y < 1.45) return;
+    const w = nearestWall(p.x, p.y, p.z, this.city.colliders, 1.15);
+    if (!w) return;
+    this.mode = "crawl";
+    this.crawlN = { nx: w.nx, nz: w.nz };
+    p.vx = 0;
+    p.vz = 0;
+    p.vy = 0;
+    p.x += w.nx * 0.08;
+    p.z += w.nz * 0.08;
+    this.silk.setEnabled(false);
+  }
+
+  private stepCrawl(dt: number) {
+    const p = this.player;
+    const ins = this.input;
+    const w = nearestWall(p.x, p.y, p.z, this.city.colliders, 1.65);
+    if (!w) {
+      this.mode = "air";
+      this.crawlN = null;
+      return;
+    }
+    this.crawlN = { nx: w.nx, nz: w.nz };
+    const fwd = lookDir(this.camYaw, 0);
+    const right = new Vector3(fwd.z, 0, -fwd.x);
+    const tx = fwd.x * -ins.moveY + right.x * ins.moveX;
+    const tz = fwd.z * -ins.moveY + right.z * ins.moveX;
+    p.x += tx * 4.4 * dt;
+    p.z += tz * 4.4 * dt;
+    p.y += (ins.sprint ? 5.2 : 3.5) * (ins.moveY <= 0 ? 1 : -0.55) * dt;
+    p.y = Math.max(1.2, Math.min(p.y, roofY(p.x, p.z, this.city.colliders) + 18));
+    p.x += w.nx * 0.05;
+    p.z += w.nz * 0.05;
+    p.yaw = this.camYaw;
+    this.playerMesh.setEnabled(true);
+    if (ins.jumpPressed || ins.swingHeld) {
+      p.vx = w.nx * 8.6;
+      p.vz = w.nz * 8.6;
+      p.vy = 6.4;
+      this.mode = "air";
+      this.crawlN = null;
+      sharedSfx.whoosh();
+    }
   }
 
   private walk(dt: number) {
@@ -663,29 +950,17 @@ export class ViceGame {
   }
 
   private combat(dt: number) {
-    if (this.input.reloadPressed && this.player.reloadT <= 0 && this.player.ammo < MAG && this.player.reserve > 0) {
-      this.player.reloadT = RELOAD_T;
-      sharedSfx.reload();
-    }
-    if (this.input.meleePressed && this.player.meleeT <= 0 && !this.drive) {
+    if (this.input.meleePressed && this.player.meleeT <= 0) {
       this.player.meleeT = MELEE_CD;
       sharedSfx.punch();
       this.meleeHit();
     }
     if (this.input.shootPressed || (this.input.fireHeld && this.player.fireT <= 0)) {
-      if (this.player.reloadT > 0) return;
-      if (this.player.ammo <= 0) {
-        if (this.input.shootPressed) sharedSfx.empty();
-        return;
-      }
       if (this.player.fireT > 0) return;
-      this.player.ammo -= 1;
-      this.player.fireT = FIRE_CD;
-      this.camPunch = 0.14;
-      sharedSfx.gunshot();
+      this.player.fireT = 0.28;
+      this.camPunch = 0.1;
       if (this.input.showTouch) this.nudgeAim();
-      this.fireRay();
-      this.notifyCrime(this.player.x, this.player.z, "gun");
+      this.webShot();
     }
     void dt;
   }
@@ -708,59 +983,83 @@ export class ViceGame {
     this.camYaw = yaw;
   }
 
-  private fireRay() {
+  private webShot() {
     const origin = new Vector3(this.player.x, this.player.y + 1.35, this.player.z);
     const dir = lookDir(this.camYaw, this.camPitch * 0.45);
-    dir.y = Math.max(-0.15, dir.y);
+    dir.y = Math.max(-0.08, dir.y);
     dir.normalize();
-    this.spawnFlash(origin.add(dir.scale(0.7)));
+    sharedSfx.web();
     let hitT = GUN_RANGE;
     let hitPed: Ped | null = null;
     let hitCop: Cop | null = null;
-    let hitCar: Car | null = null;
     if (this.interior === "street") {
       for (const b of this.city.colliders) {
         const t = this.rayAABB(origin, dir, b);
-        if (t > 0.2 && t < hitT) { hitT = t; hitPed = null; hitCop = null; hitCar = null; }
+        if (t > 0.2 && t < hitT) { hitT = t; hitPed = null; hitCop = null; }
       }
     }
     for (const p of this.peds) {
-      if (p.state === "down") continue;
-      if (p.role === "clerk" && this.interior !== "mart") continue;
-      if (p.role !== "clerk" && p.role !== "fence" && this.interior !== "street") continue;
-      const t = this.raySphere(origin, dir, p.x, 0.9, p.z, 0.45);
-      if (t > 0.2 && t < hitT) { hitT = t; hitPed = p; hitCop = null; hitCar = null; }
+      if (p.state === "down" || p.state === "webbed") continue;
+      if (p.role === "clerk" || p.role === "fence") continue;
+      if (this.interior !== "street") continue;
+      const t = this.raySphere(origin, dir, p.x, 0.9, p.z, 0.55);
+      if (t > 0.2 && t < hitT) { hitT = t; hitPed = p; hitCop = null; }
     }
     for (const c of this.cops) {
-      if (c.state === "down" || this.interior !== "street") continue;
-      const t = this.raySphere(origin, dir, c.x, 0.9, c.z, 0.45);
-      if (t > 0.2 && t < hitT) { hitT = t; hitPed = null; hitCop = c; hitCar = null; }
-    }
-    for (const car of this.cars) {
-      if (car === this.drive || car.wrecked) continue;
-      const t = this.raySphere(origin, dir, car.x, 0.6, car.z, 1.4);
-      if (t > 0.4 && t < hitT) { hitT = t; hitPed = null; hitCop = null; hitCar = car; }
+      if (c.state === "down" || c.state === "webbed" || this.interior !== "street") continue;
+      const t = this.raySphere(origin, dir, c.x, 0.9, c.z, 0.55);
+      if (t > 0.2 && t < hitT) { hitT = t; hitPed = null; hitCop = c; }
     }
     const end = origin.add(dir.scale(hitT));
-    this.spawnTracer(origin, end);
-    if (hitPed || hitCop || hitCar) this.spawnSpark(end);
-    if (hitPed) this.hurtPed(hitPed, GUN_DMG);
-    if (hitCop) this.hurtCop(hitCop, GUN_DMG);
-    if (hitCar) this.hurtCar(hitCar, 12, false);
+    this.spawnTracer(origin, end, true);
+    this.spawnSpark(end);
+    if (hitPed) this.webTarget(hitPed, false);
+    if (hitCop) this.webTarget(hitCop, true);
+    if (hitPed || hitCop) this.notifyCrime(this.player.x, this.player.z, "melee");
+  }
+
+  private webTarget(t: Ped | Cop, cop: boolean) {
+    const d = dist2(this.player.x, this.player.z, t.x, t.z);
+    t.state = "webbed";
+    t.downT = cop ? 5.2 : 4.2;
+    this.stuns += 1;
+    this.lastCombat = this.time;
+    if (d < 9.5) {
+      const k = 0.38;
+      t.x += (this.player.x - t.x) * k;
+      t.z += (this.player.z - t.z) * k;
+      if (this.mode === "air" || this.mode === "swing") {
+        const inv = d || 1;
+        this.player.vx += ((t.x - this.player.x) / inv) * 6;
+        this.player.vz += ((t.z - this.player.z) / inv) * 6;
+        this.player.vy += 1.4;
+      }
+    }
   }
 
   private meleeHit() {
     const fwd = lookDir(this.player.yaw, 0);
     const px = this.player.x + fwd.x * 1.1;
     const pz = this.player.z + fwd.z * 1.1;
+    const air = this.mode === "air" || this.mode === "swing" || this.mode === "zip";
     this.notifyCrime(this.player.x, this.player.z, "melee");
     for (const p of this.peds) {
       if (p.state === "down") continue;
-      if (dist2(px, pz, p.x, p.z) < MELEE_RANGE) this.hurtPed(p, MELEE_DMG);
+      if (dist2(px, pz, p.x, p.z) < MELEE_RANGE + (air ? 0.5 : 0)) {
+        if (air && this.player.y > 2.2) {
+          this.hurtPed(p, 80);
+          sharedSfx.impact();
+        } else this.hurtPed(p, MELEE_DMG);
+      }
     }
     for (const c of this.cops) {
       if (c.state === "down") continue;
-      if (dist2(px, pz, c.x, c.z) < MELEE_RANGE) this.hurtCop(c, MELEE_DMG);
+      if (dist2(px, pz, c.x, c.z) < MELEE_RANGE + (air ? 0.5 : 0)) {
+        if (air && this.player.y > 2.2) {
+          this.hurtCop(c, 80);
+          sharedSfx.impact();
+        } else this.hurtCop(c, MELEE_DMG);
+      }
     }
   }
 
@@ -792,7 +1091,7 @@ export class ViceGame {
   private notifyCrime(x: number, z: number, kind: "jack" | "gun" | "melee") {
     if (this.interior !== "street") return;
     for (const c of this.cops) {
-      if (c.state === "down") continue;
+      if (c.state === "down" || c.state === "webbed") continue;
       const d = dist2(c.x, c.z, x, z);
       if (d < WITNESS_R && this.hasLOS(c.x, c.z, x, z) && kind !== "jack") {
         this.addStar(1);
@@ -828,10 +1127,10 @@ export class ViceGame {
     window.setTimeout(() => { if (!s.isDisposed()) s.dispose(); }, 80);
   }
 
-  private spawnTracer(a: Vector3, b: Vector3) {
+  private spawnTracer(a: Vector3, b: Vector3, web = false) {
     const line = MeshBuilder.CreateLines("tr", { points: [a, b] }, this.scene);
-    line.color = new Color3(1, 0.85, 0.35);
-    this.tracers.push({ mesh: line, life: TRACER_LIFE });
+    line.color = web ? Color3.FromHexString(CHAR[this.player.character].color) : new Color3(1, 0.85, 0.35);
+    this.tracers.push({ mesh: line, life: web ? 0.16 : TRACER_LIFE });
   }
 
   private updateTracers(dt: number) {
@@ -928,6 +1227,15 @@ export class ViceGame {
         p.downT -= dt;
         continue;
       }
+      if (p.state === "webbed") {
+        p.downT -= dt;
+        p.mesh.position.set(p.x, 0, p.z);
+        for (const ch of p.mesh.getChildMeshes(false)) {
+          if (ch.name === "larm" || ch.name === "rarm") ch.rotation.x = -1.8;
+        }
+        if (p.downT <= 0) p.state = "flee";
+        continue;
+      }
       if (p.role === "clerk") {
         if (this.storeRobbed && this.interior === "mart") {
           p.z = Math.min(INT.mart.oz + 4.4, p.z + dt * 1.4);
@@ -1018,8 +1326,18 @@ export class ViceGame {
         c.downT -= dt;
         continue;
       }
+      if (c.state === "webbed") {
+        c.downT -= dt;
+        c.mesh.position.set(c.x, 0, c.z);
+        for (const ch of c.mesh.getChildMeshes(false)) {
+          if (ch.name === "larm" || ch.name === "rarm") ch.rotation.x = -1.8;
+        }
+        if (c.downT <= 0) c.state = "chase";
+        continue;
+      }
       const d = dist2(c.x, c.z, this.player.x, this.player.z);
-      const hasLos = this.interior === "street" && d < 42 && this.hasLOS(c.x, c.z, this.player.x, this.player.z);
+      const high = this.player.y > 14 || this.mode === "swing" || this.mode === "zip";
+      const hasLos = this.interior === "street" && d < 42 && !high && this.hasLOS(c.x, c.z, this.player.x, this.player.z);
       if (hasLos) { this.lastSeen = this.time; seen = true; this.markKnown(); }
       let tx = this.player.x;
       let tz = this.player.z;
@@ -1077,6 +1395,8 @@ export class ViceGame {
     this.searching = true;
     let rate = 1;
     if (this.interior === "garage") rate = 2.4;
+    if (this.player.y > 12) rate *= 2.6;
+    if (this.mode === "swing" || this.mode === "zip") rate *= 1.35;
     const nowKind = this.drive ? this.drive.kind : "foot";
     if (nowKind !== this.lastSeenKind) rate *= 1.55;
     this.searchT -= dt * rate;
@@ -1092,7 +1412,7 @@ export class ViceGame {
   }
 
   private tickArrest(dt: number) {
-    if (this.interior !== "street" || this.drive || this.stars <= 0) { this.stillT = 0; return; }
+    if (this.interior !== "street" || this.mode !== "ground" || this.stars <= 0) { this.stillT = 0; return; }
     let close = false;
     for (const c of this.cops) {
       if (c.state === "down") continue;
@@ -1108,6 +1428,10 @@ export class ViceGame {
   private startJail() {
     this.eject();
     this.interior = "jail";
+    this.mode = "ground";
+    this.rope = null;
+    this.zipTo = null;
+    this.silk.setEnabled(false);
     this.player.x = this.city.interiors.jail.spawnX;
     this.player.z = this.city.interiors.jail.spawnZ;
     this.player.y = 0;
@@ -1171,24 +1495,32 @@ export class ViceGame {
   }
 
   private cameraFollow() {
-    const moving = !this.drive && (this.input.moveX !== 0 || this.input.moveY !== 0);
-    const sprinting = moving && this.input.sprint && this.interior === "street";
-    const wantDist = this.drive ? 11.2 : sprinting ? 7.2 : this.interior === "street" ? 8.4 : this.camDist;
+    const spd = Math.hypot(this.player.vx, this.player.vy, this.player.vz);
+    const flying = this.mode === "swing" || this.mode === "zip" || this.mode === "air" || this.mode === "crawl";
+    const wantDist = this.interior !== "street" ? this.camDist
+      : flying ? 9.2 + Math.min(4.2, spd * 0.055)
+      : 8.2;
     this.camDist += (wantDist - this.camDist) * 0.12;
-    const wantFov = this.drive ? 0.88 : sprinting ? 1.05 : 0.78;
+    const wantFov = flying ? 0.86 + Math.min(0.24, spd * 0.0055) : 0.78;
     this.camFov += (wantFov - this.camFov) * 0.1;
     this.camera.fov = this.camFov;
-    const wantRoll = (this.drive ? -this.input.moveX * 0.07 : -this.input.moveX * 0.035) * (moving || !!this.drive ? 1 : 0);
+    const wantRoll = flying
+      ? -this.input.moveX * 0.06 - clamp(this.player.vx * 0.003, -0.08, 0.08)
+      : -this.input.moveX * 0.03;
     this.camRoll += (wantRoll - this.camRoll) * 0.1;
 
     const dir = lookDir(this.camYaw, this.camPitch);
-    const target = new Vector3(this.player.x, this.player.y + 1.45 - this.camDip * 0.5, this.player.z);
+    const target = new Vector3(
+      this.player.x + this.player.vx * 0.1,
+      this.player.y + 1.45 - this.camDip * 0.5,
+      this.player.z + this.player.vz * 0.1,
+    );
     const want = this.camDist + this.camPunch * 1.4;
     let pos = target.subtract(dir.scale(want));
     if (this.interior === "street") {
       for (let d = want; d > 2.0; d -= 0.35) {
         const p = target.subtract(dir.scale(d));
-        if (!this.blocked(p.x, p.z, 0.22)) { pos = p; break; }
+        if (!this.blocked(p.x, p.z, 0.22) || p.y > 6) { pos = p; break; }
       }
     }
     this.camera.position.copyFrom(pos);
@@ -1199,126 +1531,115 @@ export class ViceGame {
   private syncMeshes() {
     this.playerMesh.position.set(this.player.x, this.player.y, this.player.z);
     this.playerMesh.rotation.y = this.player.yaw;
-    const moving = !this.drive && (this.input.moveX !== 0 || this.input.moveY !== 0);
-    if (this.interior !== "jail") tickWalk(this.playerMesh, this.time, moving);
+    const flying = this.mode === "swing" || this.mode === "zip" || this.mode === "air" || this.mode === "crawl";
+    if (flying) tickSwingPose(this.playerMesh, this.time, this.mode === "swing" || this.mode === "zip");
+    else {
+      const moving = Math.hypot(this.player.vx, this.player.vz) > 0.45;
+      if (this.interior !== "jail") tickWalk(this.playerMesh, this.time, moving);
+    }
+    if (this.aim && this.interior === "street") {
+      this.aimOrb.setEnabled(true);
+      this.aimOrb.position.set(this.aim.x, this.aim.y, this.aim.z);
+      const pulse = 0.85 + Math.sin(this.time * 9) * 0.18;
+      this.aimOrb.scaling.setAll(pulse);
+    } else {
+      this.aimOrb.setEnabled(false);
+    }
+    if (this.mode !== "swing" && this.mode !== "zip") this.silk.setEnabled(false);
     this.placeMarker();
   }
 
   private placeMarker() {
-    let x = LOC.carA.x;
-    let z = LOC.carA.z;
-    if (this.mission === "deliver" || this.mission === "escape") {
-      x = LOC.garage.x; z = LOC.garage.z + 8;
-    } else if (this.mission === "rob") {
-      x = LOC.mart.x; z = LOC.mart.z + 7;
-    } else if (this.mission === "free") {
-      this.marker.setEnabled(false);
-      return;
+    let x = CRANE_GOAL.x;
+    let z = CRANE_GOAL.z;
+    let y = 1.2;
+    switch (this.mission) {
+      case "launch":
+        x = this.player.x + Math.sin(this.camYaw) * 10;
+        z = this.player.z + Math.cos(this.camYaw) * 10;
+        y = 8;
+        break;
+      case "crane":
+        x = CRANE_GOAL.x; z = CRANE_GOAL.z; y = CRANE_GOAL.y;
+        break;
+      case "sweep":
+        x = LOC.mart.x; z = LOC.mart.z + 8; y = 1.1;
+        break;
+      case "ghost":
+        x = 0; z = -58; y = 28;
+        break;
+      case "free":
+        this.marker.setEnabled(false);
+        return;
+      default: {
+        const _never: never = this.mission;
+        void _never;
+        this.marker.setEnabled(false);
+        return;
+      }
     }
     this.marker.setEnabled(this.interior === "street");
-    this.marker.position.set(x, 0.35 + Math.sin(this.time * 3) * 0.12, z);
+    this.marker.position.set(x, y + Math.sin(this.time * 3) * 0.18, z);
     this.marker.rotation.y = this.time * 0.6;
   }
 
-  private missions(dt: number) {
+  private missions(_dt: number) {
     if (this.interior === "jail") return;
-    if (!this.hotwire) this.prompt = "";
-    const nearCar = this.nearestCar(2.6);
-    const nearGar = dist2(this.player.x, this.player.z, LOC.garage.x, LOC.garage.z + 8) < 8 || this.interior === "garage";
-    const nearMartDoor = dist2(this.player.x, this.player.z, this.city.interiors.mart.doorX, this.city.interiors.mart.doorZ) < 2.6;
-    const nearGarDoor = dist2(this.player.x, this.player.z, this.city.interiors.garage.doorX, this.city.interiors.garage.doorZ) < 2.8;
-    const nearRegister = this.interior === "mart" && dist2(this.player.x, this.player.z, INT.mart.ox, INT.mart.oz + 3) < 2.4;
-    const nearRico = this.interior === "street" && dist2(this.player.x, this.player.z, FENCE.x, FENCE.z) < 2.8;
+    this.prompt = "";
 
-    if (this.mission === "jack") {
-      this.subtitle = "Jack a ride. Yellow hatch is closest.";
-      if (nearCar && !this.drive && !this.hotwire) this.prompt = CAR_SPEC[nearCar.kind].hotwire > 0 ? "HOLD F  HOTWIRE" : "F  ENTER";
-      if (this.drive) {
-        this.mission = "deliver";
-        this.subtitle = "Take it to Maya garage.";
-        this.persist();
-      }
-    } else if (this.mission === "deliver") {
-      this.subtitle = "Drive to the teal garage on the docks.";
-      if (this.drive && nearGar) {
-        this.delivered = true;
-        this.cash += Math.round(250 * CHAR[this.player.character].cash);
-        this.mission = "rob";
-        this.subtitle = "Rob Nova Mart on the strip.";
-        sharedSfx.reload();
-        this.persist();
-      } else if (nearCar && !this.drive && !this.hotwire) this.prompt = CAR_SPEC[nearCar.kind].hotwire > 0 ? "HOLD F  HOTWIRE" : "F  ENTER";
-    } else if (this.mission === "rob") {
-      this.subtitle = "Enter Nova Mart. Hold F at the register.";
-      if (this.interior === "street" && nearMartDoor && !this.drive) this.prompt = "F  ENTER";
-      if (nearRegister && !this.drive) {
-        this.prompt = "HOLD F  ROB";
-        if (this.input.enterHeld) {
-          this.storeHold += dt;
-          this.prompt = "ROBBING  " + Math.ceil((1.4 - this.storeHold) * 10) / 10;
-          if (this.storeHold >= 1.4 && !this.storeRobbed) {
-            this.storeRobbed = true;
-            this.stolenGoods = true;
-            this.cash += Math.round(400 * CHAR[this.player.character].cash);
-            this.notifyCrime(LOC.mart.x, LOC.mart.z + 6, "jack");
-            this.addStar(1);
-            this.mission = "escape";
-            this.subtitle = "Lose the heat at Maya garage. Rico buys bags.";
-            this.heatSit = 0;
-            this.persist();
-          }
-        } else this.storeHold = 0;
-      } else this.storeHold = 0;
-    } else if (this.mission === "escape") {
-      this.subtitle = "Sit at the garage until the star drops.";
-      if (nearGar) {
-        this.prompt = "COOLING OFF";
-        this.heatSit += dt;
-        if (this.heatSit > 2.2) {
-          this.stars = 0;
-          this.lastSeen = this.time;
-          this.searching = false;
+    switch (this.mission) {
+      case "launch":
+        this.subtitle = "Hold SALIN. Stick a line. Swing.";
+        this.prompt = this.aim ? "HOLD F  SALIN" : "LOOK UP  HOLD F / SALIN";
+        if (this.launched || this.mode === "swing" || this.mode === "zip") {
+          this.mission = "crane";
+          this.subtitle = "Ride the line to the dock crane.";
+          this.persist();
+        }
+        break;
+      case "crane":
+        this.subtitle = "Ride the line to the dock crane.";
+        if (this.aim) this.prompt = this.mode === "swing" ? "STEER  RELEASE TO FLY" : "HOLD F  SALIN    E  ZIP";
+        if (dist2(this.player.x, this.player.z, CRANE_GOAL.x, CRANE_GOAL.z) < 8.5 && this.player.y > 8) {
+          this.mission = "sweep";
+          this.subtitle = "Web-stun three on the strip. ATEŞ.";
+          this.persist();
+        }
+        break;
+      case "sweep":
+        this.subtitle = "Web-stun three on the strip. ATEŞ.  " + this.stuns + "/3";
+        this.prompt = "CLICK / ATEŞ  STUN    V  MELEE";
+        if (this.stuns >= 3) {
+          this.mission = "ghost";
+          this.subtitle = "Climb the skyline. Lose the heat.";
+          this.persist();
+        }
+        break;
+      case "ghost":
+        if (!this.ghostArmed) {
+          this.ghostArmed = true;
+          if (this.stars < 1) this.addStar(1);
+        }
+        this.subtitle = "Swing high. Let the search die.";
+        this.prompt = this.player.y > 12 ? "HIGH  HEAT FADING" : "GET ABOVE THE ROOFS";
+        if (this.stars <= 0 && this.player.y > 8) {
           this.escaped = true;
           this.mission = "free";
-          this.cash += Math.round(200 * CHAR[this.player.character].cash);
-          this.subtitle = "South Docks is yours. Free roam.";
+          this.subtitle = "South Docks is yours. Keep swinging.";
           this.persist();
         }
-      } else this.heatSit = 0;
-    } else {
-      this.subtitle = "Free roam. South Docks.";
-      if (nearCar && !this.drive && !this.hotwire) this.prompt = CAR_SPEC[nearCar.kind].hotwire > 0 ? "HOLD F  HOTWIRE" : "F  ENTER";
-      else if (this.drive) this.prompt = "F  EXIT";
+        break;
+      case "free":
+        this.subtitle = "South Docks. Keep swinging.";
+        if (this.aim && this.mode === "ground") this.prompt = "HOLD F  SALIN";
+        else if (this.mode === "swing") this.prompt = "RELEASE  FLY    E  ZIP";
+        else if (this.mode === "crawl") this.prompt = "JUMP / SALIN  LEAP";
+        break;
+      default: {
+        const _never: never = this.mission;
+        void _never;
+      }
     }
-
-    if (this.interior !== "street" && dist2(this.player.x, this.player.z, this.city.interiors[this.interior].exitX, this.city.interiors[this.interior].exitZ) < 2.4) {
-      this.prompt = "F  EXIT";
-    }
-    if (this.interior === "street" && !this.drive && this.mission !== "rob") {
-      if (nearMartDoor) this.prompt = this.prompt || "F  ENTER";
-      if (nearGarDoor) this.prompt = this.prompt || "F  ENTER";
-    }
-    if (this.interior === "garage" && this.parkedRepair && !this.parkedRepair.wrecked) {
-      if (this.input.enterHeld && this.cash >= REPAIR_COST) {
-        this.prompt = "REPAIRING";
-        this.storeHold += dt;
-        if (this.storeHold > 1.1) {
-          this.cash -= REPAIR_COST;
-          this.parkedRepair.body = 100;
-          this.parkedRepair.engineHp = 100;
-          this.parkedRepair.tires = 100;
-          this.parkedRepair.hp = 100;
-          this.paintCar(this.parkedRepair);
-          this.storeHold = 0;
-          this.subtitle = "Maya bolts it back together.";
-          this.persist();
-        }
-      } else if (!this.input.enterHeld) this.prompt = this.prompt || "HOLD F  REPAIR $" + REPAIR_COST;
-    }
-    if (nearRico && (this.stolenGoods && !this.ricoPaidJob || (this.nearestCar(5)?.stolen && this.ricoCars < 3))) {
-      this.prompt = "F  SELL STOLEN";
-    }
-    if (this.drive && this.mission !== "rob" && this.interior === "street") this.prompt = this.prompt || "F  EXIT";
   }
 
   private nearestCar(r: number): Car | null {
@@ -1338,13 +1659,16 @@ export class ViceGame {
     h.stars = this.stars;
     h.health = Math.max(0, this.player.health);
     h.maxHealth = this.player.maxHealth;
-    h.ammo = this.player.ammo;
-    h.reserve = this.player.reserve;
-    h.reloading = this.player.reloadT > 0;
+    h.ammo = 0;
+    h.reserve = 0;
+    h.reloading = false;
     h.prompt = this.prompt;
     h.subtitle = this.subtitle;
-    h.inCar = !!this.drive;
-    h.vehicleHp = this.drive ? Math.round((this.drive.body + this.drive.engineHp + this.drive.tires) / 3) : 0;
+    h.inCar = false;
+    h.vehicleHp = 0;
+    h.mode = this.mode;
+    h.speed = Math.hypot(this.player.vx, this.player.vy, this.player.vz);
+    h.canAttach = !!this.aim;
     h.fade = this.fade;
     h.busted = this.busted;
     h.fps = this.fps;
@@ -1360,11 +1684,17 @@ export class ViceGame {
     h.searching = this.searching && this.stars > 0;
     h.localSave = this.hasSave;
     h.interior = this.interior;
-    if (this.mission === "jack") { h.missionTitle = "WHEELS"; h.missionHint = "Jack a car"; }
-    else if (this.mission === "deliver") { h.missionTitle = "WHEELS"; h.missionHint = "Deliver to Maya garage"; }
-    else if (this.mission === "rob") { h.missionTitle = "HEAT"; h.missionHint = "Rob Nova Mart"; }
-    else if (this.mission === "escape") { h.missionTitle = "HEAT"; h.missionHint = "Lose the cops at the garage"; }
-    else { h.missionTitle = "FREE"; h.missionHint = "South Docks"; }
+    switch (this.mission) {
+      case "launch": h.missionTitle = "LINE"; h.missionHint = "Stick a line"; break;
+      case "crane": h.missionTitle = "CRANE"; h.missionHint = "Swing to the docks crane"; break;
+      case "sweep": h.missionTitle = "SWEEP"; h.missionHint = "Stun three  " + this.stuns + "/3"; break;
+      case "ghost": h.missionTitle = "GHOST"; h.missionHint = "Lose heat above the roofs"; break;
+      case "free": h.missionTitle = "FREE"; h.missionHint = "South Docks"; break;
+      default: {
+        const _never: never = this.mission;
+        void _never;
+      }
+    }
     return h;
   }
 }

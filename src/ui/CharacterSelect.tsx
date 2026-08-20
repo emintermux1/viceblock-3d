@@ -9,7 +9,7 @@ export function CharacterSelect({ onPick }: Props) {
     <div className="select-scr">
       <div className="select-fg">
         <p className="select-kicker">SOUTH DOCKS</p>
-        <h2>WHO WALKS THE BLOCK</h2>
+        <h2>WHO TAKES THE LINE</h2>
         <div className="select-grid">
           {ORDER.map((id) => {
             const def = CHAR[id];
@@ -22,7 +22,7 @@ export function CharacterSelect({ onPick }: Props) {
             );
           })}
         </div>
-        <p className="select-hint">Phone: left stick walk · right drag look · 🔫 shoot · 🚗 enter · ⬆ jump. Desktop: WASD · mouse look · Q/E · click shoot · F · V</p>
+        <p className="select-hint">Phone: left stick · right look · SALIN / ZIP / ATEŞ. Desktop: WASD · mouse look (no lock) · hold F SALIN · E ZIP · click ATEŞ · Space jump</p>
       </div>
     </div>
   );
@@ -31,9 +31,8 @@ export function CharacterSelect({ onPick }: Props) {
 function CharFig({ id }: { id: CharacterId }) {
   return (
     <i className={"char-fig fig-" + id} aria-hidden>
-      <i className="cf-hair" />
-      <i className="cf-head" />
-      <i className="cf-ear" />
+      <i className="cf-helm" />
+      <i className="cf-visor" />
       <i className="cf-torso" />
       <i className="cf-arm l" />
       <i className="cf-arm r" />

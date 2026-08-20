@@ -1,6 +1,6 @@
 import {
   Color3, Color4, DirectionalLight, DynamicTexture, HemisphericLight, Mesh, MeshBuilder,
-  PointLight, Scene, StandardMaterial, Vector3,
+  PointLight, Quaternion, Scene, StandardMaterial, Vector3,
 } from "@babylonjs/core";
 import {
   asphaltMat, makeDecal, makeSign, mat, roadMat, sidewalkMat, tickCityArt, waterMat, woodDockMat,
@@ -11,6 +11,7 @@ import {
   makeDumpster, makeFence, makeHydrant, makeLamp, makeNewsbox, makePalm, makePiling, makeTrash,
   type BuildingStyle,
 } from "./meshes";
+import { addBuildingAnchors, type Anchor } from "./swing";
 import type { AABB } from "./types";
 
 export type Landmark = { x: number; z: number; r: number };
@@ -39,6 +40,7 @@ export type CityData = {
   fence: { x: number; z: number };
   benches: { x: number; z: number }[];
   crossings: { x: number; z: number }[];
+  anchors: Anchor[];
 };
 
 export { tickCityArt };
@@ -108,6 +110,7 @@ export function buildCity(scene: Scene): CityData {
   paintRoads(scene);
 
   const colliders: AABB[] = [];
+  const anchors: Anchor[] = [];
   const roads: { x: number; z: number }[] = [];
 
   for (let ix = -4; ix <= 4; ix++) {
@@ -116,15 +119,14 @@ export function buildCity(scene: Scene): CityData {
     }
   }
 
-  placeBlocks(scene, colliders);
-  placeLandmarks(scene, colliders);
-  placeStrip(scene, colliders);
-  placeDocks(scene, colliders);
-  placePalmsAndLamps(scene);
+  placeBlocks(scene, colliders, anchors);
+  placeLandmarks(scene, colliders, anchors);
+  placeStrip(scene, colliders, anchors);
+  placeDocks(scene, colliders, anchors);
+  placePalmsAndLamps(scene, anchors);
+  placeSwingCables(scene, anchors);
   const benches = placeDressing(scene);
   const interiors = buildInteriors(scene);
-
-  colliders.push(boxAABB(0, 78, 200, 2, 4));
 
   return {
     colliders,
@@ -137,6 +139,7 @@ export function buildCity(scene: Scene): CityData {
     interiors,
     fence: { x: FENCE.x, z: FENCE.z },
     benches,
+    anchors,
     crossings: [
       { x: -20, z: 0 }, { x: 20, z: 0 }, { x: -20, z: 30 }, { x: 20, z: 30 },
       { x: -60, z: 30 }, { x: 60, z: 0 },
@@ -262,24 +265,24 @@ type Block = {
   x: number; z: number; w: number; d: number; h: number; hex: string; style: BuildingStyle; yaw?: number;
 };
 
-function placeBlocks(scene: Scene, colliders: AABB[]) {
+function placeBlocks(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
   const colors = ["#1a3a44", "#3a2040", "#c4a070", "#2a3048", "#8a4038", "#1a2820", "#4a3048", "#2a4450"];
   const extras: Block[] = [
-    { x: 0, z: -58, w: 14, d: 12, h: 24, hex: "#1a3a44", style: "tower" },
-    { x: -38, z: -56, w: 12, d: 10, h: 18, hex: "#2a3048", style: "tower" },
-    { x: 38, z: -54, w: 11, d: 11, h: 16, hex: "#3a2040", style: "tower" },
-    { x: -72, z: -28, w: 10, d: 12, h: 9, hex: "#8a4038", style: "walkup" },
-    { x: 72, z: -28, w: 11, d: 10, h: 11, hex: "#2a4450", style: "walkup" },
-    { x: -72, z: 12, w: 10, d: 9, h: 8, hex: "#4a3048", style: "shop" },
-    { x: 74, z: 14, w: 9, d: 10, h: 7, hex: "#1a2820", style: "walkup" },
-    { x: -38, z: 16, w: 9, d: 8, h: 10, hex: "#2a3048", style: "walkup" },
-    { x: 4, z: 16, w: 8, d: 8, h: 9, hex: "#3a2040", style: "walkup" },
-    { x: 38, z: 14, w: 10, d: 8, h: 8, hex: "#c4a070", style: "shop" },
-    { x: -72, z: -8, w: 9, d: 9, h: 12, hex: "#1a3a44", style: "walkup" },
-    { x: 8, z: -28, w: 10, d: 9, h: 13, hex: "#2a4450", style: "walkup" },
-    { x: -8, z: 52, w: 14, d: 10, h: 7, hex: "#4a4038", style: "warehouse" },
-    { x: 8, z: 52, w: 12, d: 9, h: 6.5, hex: "#3a3830", style: "warehouse" },
-    { x: 72, z: 52, w: 13, d: 11, h: 8, hex: "#4a4038", style: "warehouse" },
+    { x: 0, z: -58, w: 14, d: 12, h: 46, hex: "#1a3a44", style: "tower" },
+    { x: -38, z: -56, w: 12, d: 10, h: 34, hex: "#2a3048", style: "tower" },
+    { x: 38, z: -54, w: 11, d: 11, h: 38, hex: "#3a2040", style: "tower" },
+    { x: -72, z: -28, w: 10, d: 12, h: 18, hex: "#8a4038", style: "walkup" },
+    { x: 72, z: -28, w: 11, d: 10, h: 22, hex: "#2a4450", style: "walkup" },
+    { x: -72, z: 12, w: 10, d: 9, h: 14, hex: "#4a3048", style: "shop" },
+    { x: 74, z: 14, w: 9, d: 10, h: 16, hex: "#1a2820", style: "walkup" },
+    { x: -38, z: 16, w: 9, d: 8, h: 20, hex: "#2a3048", style: "walkup" },
+    { x: 4, z: 16, w: 8, d: 8, h: 18, hex: "#3a2040", style: "walkup" },
+    { x: 38, z: 14, w: 10, d: 8, h: 16, hex: "#c4a070", style: "shop" },
+    { x: -72, z: -8, w: 9, d: 9, h: 24, hex: "#1a3a44", style: "walkup" },
+    { x: 8, z: -28, w: 10, d: 9, h: 26, hex: "#2a4450", style: "walkup" },
+    { x: -8, z: 52, w: 14, d: 10, h: 12, hex: "#4a4038", style: "warehouse" },
+    { x: 8, z: 52, w: 12, d: 9, h: 11, hex: "#3a3830", style: "warehouse" },
+    { x: 72, z: 52, w: 13, d: 11, h: 14, hex: "#4a4038", style: "warehouse" },
   ];
 
   for (const b of extras) {
@@ -289,6 +292,7 @@ function placeBlocks(scene: Scene, colliders: AABB[]) {
     const yaw = b.yaw ?? faceRoadYaw(b.x, b.z);
     makeBuilding(scene, b.x, b.z, b.w, b.d, b.h, b.hex, b.style, yaw);
     colliders.push(boxAABB(b.x, b.z, b.w, b.d, b.h, yaw));
+    addBuildingAnchors(anchors, b.x, b.z, b.w, b.d, b.h);
     if (b.x === 0 && b.z === -58) {
       makeSign(scene, "NOVA CITY", b.x, b.h + 1.7, b.z + b.d * 0.5 + 0.2, 8.6, 1.45, "#120808", "#ffc83d", Math.PI);
       makeSign(scene, "SOUTH DOCKS", b.x, b.h + 0.25, b.z + b.d * 0.5 + 0.2, 7.4, 0.82, "#081018", "#2ef2d0", Math.PI);
@@ -314,23 +318,25 @@ function placeBlocks(scene: Scene, colliders: AABB[]) {
       const z = z0 + oz * 0.55;
       let w = 9 + ((ix * 5 + iz * 3) % 5);
       let d = 8 + ((ix * 2 + iz * 7) % 5);
-      let h = 7 + ((ix * 11 + iz * 17 + 20) % 12);
+      let h = 12 + ((ix * 11 + iz * 17 + 20) % 18);
       const hex = colors[ci++ % colors.length];
       let style: BuildingStyle = "walkup";
-      if (iz <= -2) style = "tower";
-      else if (iz >= 1 && Math.abs(ix) >= 2) style = "warehouse";
+      if (iz <= -2) { style = "tower"; h += 16; }
+      else if (iz >= 1 && Math.abs(ix) >= 2) { style = "warehouse"; h = 9 + (ix % 4); }
       else if (iz === 1) style = "shop";
       const yaw = faceRoadYaw(x, z);
       makeBuilding(scene, x, z, w, d, h, hex, style, yaw);
       colliders.push(boxAABB(x, z, w, d, h, yaw));
+      addBuildingAnchors(anchors, x, z, w, d, h);
     }
   }
 }
 
-function placeLandmarks(scene: Scene, colliders: AABB[]) {
+function placeLandmarks(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
   const mx = LOC.mart.x, mz = LOC.mart.z;
   makeBuilding(scene, mx, mz, 14, 10, 5.4, "#c8b070", "shop", Math.PI);
   colliders.push(boxAABB(mx, mz, 14, 10, 5.4));
+  addBuildingAnchors(anchors, mx, mz, 14, 10, 5.4);
   makeSign(scene, "NOVA MART", mx, 5.85, mz + 5.3, 7.8, 1.0, "#1a1000", "#ffc83d", Math.PI);
   const awn = MeshBuilder.CreateBox("mawn", { width: 13.2, height: 0.12, depth: 1.5 }, scene);
   awn.position.set(mx, 3.5, mz + 5.7);
@@ -354,6 +360,7 @@ function placeLandmarks(scene: Scene, colliders: AABB[]) {
   door.material = mat(scene, "#0e1012", 0.04);
   makeSign(scene, "MAYA GARAGE", gx, 5.55, gz + 6.3, 8.6, 0.8, "#041814", "#2ef2d0", Math.PI);
   colliders.push(boxAABB(gx, gz, 16, 12, 5.1));
+  addBuildingAnchors(anchors, gx, gz, 16, 12, 5.1);
   const oil = MeshBuilder.CreateGround("oil", { width: 6.6, height: 4.3 }, scene);
   oil.position.set(gx, 0.05, gz + 8.2);
   oil.material = mat(scene, "#1a1410", 0.02);
@@ -362,14 +369,16 @@ function placeLandmarks(scene: Scene, colliders: AABB[]) {
   makeCone(scene, gx - 8.4, gz + 3.2);
 
   const ax = LOC.spawn.x - 10, az = LOC.spawn.z - 8;
-  makeBuilding(scene, ax, az, 12, 10, 14, "#2a3048", "walkup", Math.PI);
-  colliders.push(boxAABB(ax, az, 12, 10, 14));
+  makeBuilding(scene, ax, az, 12, 10, 22, "#2a3048", "walkup", Math.PI);
+  colliders.push(boxAABB(ax, az, 12, 10, 22));
+  addBuildingAnchors(anchors, ax, az, 12, 10, 22);
   const warm = MeshBuilder.CreateBox("aptw", { width: 1.5, height: 1.7, depth: 0.08 }, scene);
   warm.position.set(ax + 2.2, 3.3, az + 5.1);
   warm.material = mat(scene, "#f2c46a", 0.75);
 
-  makeBuilding(scene, 52, -18, 16, 12, 8.2, "#e8eef4", "walkup", Math.PI);
-  colliders.push(boxAABB(52, -18, 16, 12, 8.2));
+  makeBuilding(scene, 52, -18, 16, 12, 14, "#e8eef4", "walkup", Math.PI);
+  colliders.push(boxAABB(52, -18, 16, 12, 14));
+  addBuildingAnchors(anchors, 52, -18, 16, 12, 14);
   const stripeB = MeshBuilder.CreateBox("pds", { width: 16.2, height: 0.75, depth: 0.12 }, scene);
   stripeB.position.set(52, 3.3, -11.9);
   stripeB.material = mat(scene, "#1a3a88", 0.22);
@@ -382,7 +391,7 @@ function placeLandmarks(scene: Scene, colliders: AABB[]) {
   flag.material = mat(scene, "#1a3a88", 0.18);
 }
 
-function placeStrip(scene: Scene, colliders: AABB[]) {
+function placeStrip(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
   const shops: [number, string, string, string][] = [
     [-44, "#2a1020", "#ff4d8d", "PINK HOUR"],
     [-32, "#102028", "#2ef2d0", "VICE"],
@@ -391,19 +400,24 @@ function placeStrip(scene: Scene, colliders: AABB[]) {
     [40, "#2a1410", "#ff6a3d", "6IX"],
   ];
   for (const [x, base, neon, name] of shops) {
-    makeBuilding(scene, x, 42, 9.2, 8.2, 6.6, base, "shop", Math.PI);
-    colliders.push(boxAABB(x, 42, 9.2, 8.2, 6.6));
+    makeBuilding(scene, x, 42, 9.2, 8.2, 11, base, "shop", Math.PI);
+    colliders.push(boxAABB(x, 42, 9.2, 8.2, 11));
+    addBuildingAnchors(anchors, x, 42, 9.2, 8.2, 11);
     makeSign(scene, name, x, 6.95, 46.2, name.length > 6 ? 6.3 : 4.7, 0.76, "#08080c", neon, Math.PI);
   }
   makeBillboard(scene, -8, 48, "NOVA CITY FM", "#ffc83d", Math.PI);
 }
 
-function placeDocks(scene: Scene, colliders: AABB[]) {
+function placeDocks(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
   const deck = MeshBuilder.CreateBox("pier", { width: 32, height: 0.42, depth: 24 }, scene);
   deck.position.set(44, 0.16, 79);
   deck.material = woodDockMat(scene);
-  makeBuilding(scene, 44, 64, 18, 10, 7.2, "#4a4038", "warehouse", Math.PI);
-  colliders.push(boxAABB(44, 64, 18, 10, 7.2));
+  makeBuilding(scene, 44, 64, 18, 10, 12, "#4a4038", "warehouse", Math.PI);
+  colliders.push(boxAABB(44, 64, 18, 10, 12));
+  addBuildingAnchors(anchors, 44, 64, 18, 10, 12);
+  anchors.push({ x: 58, y: 17.2, z: 80 });
+  anchors.push({ x: 58, y: 17.4, z: 86 });
+  anchors.push({ x: 58, y: 14, z: 92 });
   makeSign(scene, "DOCKS", 44, 7.5, 69.2, 5.6, 0.65, "#1a1008", "#ffc83d", Math.PI);
 
   makeContainer(scene, 32, 80, 0, "#ff8a3d", 0.12);
@@ -428,7 +442,7 @@ function placeDocks(scene: Scene, colliders: AABB[]) {
   makeFence(scene, 8, 73.4, 22, 0);
 }
 
-function placePalmsAndLamps(scene: Scene) {
+function placePalmsAndLamps(scene: Scene, anchors: Anchor[]) {
   const palms = [-70, -50, -36, -10, 6, 22, 38, 54, 70];
   for (const x of palms) {
     makePalm(scene, x, 25);
@@ -442,6 +456,8 @@ function placePalmsAndLamps(scene: Scene) {
   ];
   lamps.forEach(([x, z, yaw], i) => {
     makeLamp(scene, x, z, true, yaw);
+    anchors.push({ x, y: 4.6, z });
+    anchors.push({ x, y: 7.2, z });
     if (i < 8) {
       const pl = new PointLight("pl", new Vector3(x, 4.5, z + 1), scene);
       pl.diffuse = new Color3(1, 0.78, 0.42);
@@ -449,6 +465,45 @@ function placePalmsAndLamps(scene: Scene) {
       pl.range = 18;
     }
   });
+}
+
+function placeSwingCables(scene: Scene, anchors: Anchor[]) {
+  const matC = mat(scene, "#2a2a30", 0.08);
+  const span = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) => {
+    const dx = bx - ax, dy = by - ay, dz = bz - az;
+    const len = Math.hypot(dx, dy, dz) || 0.01;
+    const m = MeshBuilder.CreateCylinder("cab", { height: 1, diameter: 0.06, tessellation: 4 }, scene);
+    m.position.set((ax + bx) * 0.5, (ay + by) * 0.5, (az + bz) * 0.5);
+    m.scaling.set(1, len, 1);
+    m.material = matC;
+    const dir = new Vector3(dx / len, dy / len, dz / len);
+    const axis = Vector3.Cross(Vector3.Up(), dir);
+    if (axis.length() > 0.0001) {
+      m.rotationQuaternion = Quaternion.RotationAxis(axis.normalize(), Math.acos(Math.max(-1, Math.min(1, Vector3.Dot(Vector3.Up(), dir)))));
+    }
+    const steps = Math.max(2, Math.floor(len / 10));
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      anchors.push({ x: ax + dx * t, y: ay + dy * t, z: az + dz * t });
+    }
+  };
+  const xs = [-60, -20, 20, 60];
+  const zs = [-40, 0, 30, 60];
+  for (const x of xs) {
+    span(x, 14, -56, x, 14, 68);
+    span(x, 22, -40, x, 22, 50);
+    for (let z = -50; z <= 70; z += 14) {
+      anchors.push({ x, y: 11, z });
+      anchors.push({ x, y: 18, z });
+    }
+  }
+  for (const z of zs) {
+    span(-72, 13, z, 72, 13, z);
+    for (let x = -70; x <= 70; x += 14) anchors.push({ x, y: 12, z });
+  }
+  anchors.push({ x: LOC.spawn.x + 6, y: 9, z: LOC.spawn.z + 4 });
+  anchors.push({ x: LOC.spawn.x - 4, y: 12, z: LOC.spawn.z - 6 });
+  anchors.push({ x: LOC.spawn.x + 2, y: 16, z: LOC.spawn.z - 10 });
 }
 
 function placeDressing(scene: Scene): { x: number; z: number }[] {
