@@ -1,5 +1,5 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
-import { bootAudio, ViceGame } from "./engine";
+import { ViceGame } from "./engine";
 import type { Input } from "./input";
 import type { CharacterId, HudState } from "./types";
 
@@ -14,7 +14,6 @@ type Props = {
 
 export function GameView({ input, character, frozen, muted, onHud, gameRef }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const hudKey = useRef("");
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -22,7 +21,6 @@ export function GameView({ input, character, frozen, muted, onHud, gameRef }: Pr
     const game = new ViceGame(canvas, input, character);
     gameRef.current = game;
     canvas.focus();
-    if (!input.showTouch) void canvas.requestPointerLock?.().catch(() => undefined);
     const id = window.setInterval(() => {
       onHud(game.hud());
     }, 80);

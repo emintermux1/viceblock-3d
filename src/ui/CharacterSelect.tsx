@@ -22,7 +22,7 @@ export function CharacterSelect({ onPick }: Props) {
             );
           })}
         </div>
-        <p className="select-hint">Phone: left stick walk · right drag look · 🔫 shoot · 🚗 enter · ⬆ jump. Desktop: WASD · mouse · F · V</p>
+        <p className="select-hint">Phone: left stick walk · right drag look · 🔫 shoot · 🚗 enter · ⬆ jump. Desktop: WASD · mouse look · Q/E · click shoot · F · V</p>
       </div>
     </div>
   );

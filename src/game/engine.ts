@@ -3,7 +3,7 @@ import {
   StandardMaterial, Vector3,
 } from "@babylonjs/core";
 import { gestureUnlock, radio, sharedSfx } from "./audio";
-import { buildCity, type CityData } from "./city";
+import { buildCity, tickCityArt, type CityData } from "./city";
 import {
   ARREST_R, BAIL, CALL_T, CAR_FRICTION, CAR_HP, CAR_REV, CAR_SPEC, CHAR, COP_DMG,
   COP_FOOT, COP_SHOT_CD, FENCE, FIRE_CD, GRAVITY, GUN_DMG, GUN_RANGE, INT, JAIL_WAIT,
@@ -48,9 +48,11 @@ export class ViceGame {
     fireT: 0, meleeT: 0, reloadT: 0, grounded: true, flash: 0,
     character: "ansem" as CharacterId,
   };
-  camYaw = 0.4;
-  camPitch = 0.28;
+  camYaw = 0.95;
+  camPitch = 0.22;
   camDist = 8.6;
+  private camFov = 0.8;
+  private camRoll = 0;
   cars: Car[] = [];
   peds: Ped[] = [];
   cops: Cop[] = [];
@@ -118,7 +120,7 @@ export class ViceGame {
     this.scene.collisionsEnabled = false;
     this.camera = new FreeCamera("cam", new Vector3(0, 8, -12), this.scene);
     this.camera.minZ = 0.15;
-    this.camera.maxZ = 280;
+    this.camera.maxZ = 420;
     this.camera.inputs.clear();
     this.flare = flareTex(this.scene);
     this.city = buildCity(this.scene);
@@ -138,9 +140,6 @@ export class ViceGame {
   private onResize = () => this.engine.resize();
   private onClick = () => {
     this.canvas.focus();
-    if (!this.input.showTouch && document.pointerLockElement !== this.canvas) {
-      void this.canvas.requestPointerLock().catch(() => undefined);
-    }
   };
 
   setPaused(v: boolean) { this.frozen = v; }
@@ -190,6 +189,10 @@ export class ViceGame {
       { ...LOC.carA, kind: "hatch", color: "#ffc83d", special: "jack" },
       { ...LOC.carB, kind: "sedan", color: "#2a8a7a", special: "" },
       { ...LOC.carC, kind: "muscle", color: "#ff6a3d", special: "" },
+      { x: -58, z: 8, yaw: 0.05, kind: "sedan", color: "#4a6088", special: "" },
+      { x: 22, z: 48, yaw: Math.PI, kind: "hatch", color: "#c03050", special: "" },
+      { x: -46, z: 28, yaw: 1.55, kind: "muscle", color: "#2a2a38", special: "" },
+      { x: 48, z: -6, yaw: 0.1, kind: "cop", color: "#f0f2f4", special: "" },
     ];
     for (const s of specs) {
       const mesh = makeCar(this.scene, s.color, s.kind);
@@ -264,8 +267,9 @@ export class ViceGame {
   private step(dt: number) {
     const look = this.input.consumeLook();
     const touch = this.input.showTouch;
+    const inv = this.input.lookInvert ? -1 : 1;
     const sx = touch ? 0.0072 : 0.0044;
-    const sy = touch ? -0.0064 : 0.0038;
+    const sy = (touch ? 0.0056 : 0.0038) * inv;
     this.camYaw = angWrap(this.camYaw + look.x * sx);
     this.camPitch = clamp(this.camPitch + look.y * sy, -0.62, 0.98);
     this.enterLock = Math.max(0, this.enterLock - dt);
@@ -300,6 +304,7 @@ export class ViceGame {
     this.regen(dt);
     this.cameraFollow();
     this.syncMeshes();
+    tickCityArt(this.scene, this.time);
     this.wantedDecay(dt);
     this.saveAcc += dt;
     if (this.saveAcc > 4) { this.saveAcc = 0; this.persist(); }
@@ -452,13 +457,14 @@ export class ViceGame {
     car.exploding = true;
     car.boomT = 0.7;
     sharedSfx.explode();
-    const ball = MeshBuilder.CreateSphere("boom", { diameter: 0.4, segments: 6 }, this.scene);
-    ball.position.set(car.x, 1.1, car.z);
+    const ball = MeshBuilder.CreateSphere("boom", { diameter: 0.55, segments: 8 }, this.scene);
+    ball.position.set(car.x, 1.15, car.z);
     const m = new StandardMaterial("bm", this.scene);
     m.emissiveColor = new Color3(1, 0.45, 0.1);
     m.diffuseColor = new Color3(1, 0.4, 0.1);
     ball.material = m;
-    window.setTimeout(() => ball.dispose(), 500);
+    this.camPunch = 0.45;
+    window.setTimeout(() => ball.dispose(), 560);
     const start = this.time;
     const grow = () => {
       const k = (this.time - start) / 0.45;
@@ -1156,10 +1162,25 @@ export class ViceGame {
       const bob = Math.abs(c.speed) > 1 ? Math.sin(this.time * 11) * 0.035 * Math.min(1, Math.abs(c.speed) / 14) : 0;
       c.mesh.position.set(c.x, bob, c.z);
       c.mesh.rotation.y = c.yaw;
+      if (this.drive === c) {
+        c.mesh.rotation.z = -this.input.moveX * 0.09 * Math.min(1, Math.abs(c.speed) / 9);
+      } else {
+        c.mesh.rotation.z = 0;
+      }
     }
   }
 
   private cameraFollow() {
+    const moving = !this.drive && (this.input.moveX !== 0 || this.input.moveY !== 0);
+    const sprinting = moving && this.input.sprint && this.interior === "street";
+    const wantDist = this.drive ? 11.2 : sprinting ? 7.2 : this.interior === "street" ? 8.4 : this.camDist;
+    this.camDist += (wantDist - this.camDist) * 0.12;
+    const wantFov = this.drive ? 0.88 : sprinting ? 1.05 : 0.78;
+    this.camFov += (wantFov - this.camFov) * 0.1;
+    this.camera.fov = this.camFov;
+    const wantRoll = (this.drive ? -this.input.moveX * 0.07 : -this.input.moveX * 0.035) * (moving || !!this.drive ? 1 : 0);
+    this.camRoll += (wantRoll - this.camRoll) * 0.1;
+
     const dir = lookDir(this.camYaw, this.camPitch);
     const target = new Vector3(this.player.x, this.player.y + 1.45 - this.camDip * 0.5, this.player.z);
     const want = this.camDist + this.camPunch * 1.4;
@@ -1172,6 +1193,7 @@ export class ViceGame {
     }
     this.camera.position.copyFrom(pos);
     this.camera.setTarget(target);
+    this.camera.rotation.z += this.camRoll;
   }
 
   private syncMeshes() {

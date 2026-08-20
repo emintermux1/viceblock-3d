@@ -26,6 +26,7 @@ export class Input {
   stickKnobY = 0;
   stickId: number | null = null;
   showTouch = false;
+  lookInvert = false;
 
   private stickX = 0;
   private stickY = 0;

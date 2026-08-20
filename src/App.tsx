@@ -29,6 +29,9 @@ function Shell() {
   const [character, setCharacter] = useState<CharacterId>("ansem");
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [lookInvert, setLookInvert] = useState(() => {
+    try { return localStorage.getItem("viceblock3d-look-invert") === "1"; } catch { return false; }
+  });
   const [hud, setHud] = useState<HudState>(emptyHud);
   const [touch, setTouch] = useState(() => detectMobile());
   const inputRef = useRef(new Input());
@@ -56,6 +59,10 @@ function Shell() {
       document.removeEventListener("touchmove", pinch);
     };
   }, []);
+
+  useEffect(() => {
+    inputRef.current.lookInvert = lookInvert;
+  }, [lookInvert]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -102,7 +109,21 @@ function Shell() {
           <HUD hud={hud} onTapMusic={() => bootAudio()} />
           <TouchControls input={inputRef.current} hidden={!touch || paused} inCar={hud.inCar} onPause={() => setPaused(true)} />
           {paused && (
-            <PauseMenu muted={muted} onResume={() => setPaused(false)} onMute={() => setMuted((m) => !m)} onExit={exitTitle} />
+            <PauseMenu
+              muted={muted}
+              lookInvert={lookInvert}
+              onResume={() => setPaused(false)}
+              onMute={() => setMuted((m) => !m)}
+              onInvert={() => {
+                setLookInvert((v) => {
+                  const next = !v;
+                  inputRef.current.lookInvert = next;
+                  try { localStorage.setItem("viceblock3d-look-invert", next ? "1" : "0"); } catch { /* ignore */ }
+                  return next;
+                });
+              }}
+              onExit={exitTitle}
+            />
           )}
         </>
       )}
