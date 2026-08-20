@@ -81,11 +81,11 @@ function faceRoadYaw(x: number, z: number): number {
 }
 
 export function buildCity(scene: Scene): CityData {
-  scene.clearColor = new Color4(0.2, 0.07, 0.14, 1);
+  scene.clearColor = new Color4(0.12, 0.06, 0.14, 1);
   scene.fogMode = Scene.FOGMODE_EXP2;
-  scene.fogColor = new Color3(0.58, 0.24, 0.26);
-  scene.fogDensity = 0.0048;
-  scene.ambientColor = new Color3(0.32, 0.16, 0.18);
+  scene.fogColor = new Color3(0.72, 0.38, 0.28);
+  scene.fogDensity = 0.0016;
+  scene.ambientColor = new Color3(0.38, 0.2, 0.22);
   const ipc = scene.imageProcessingConfiguration;
   ipc.toneMappingEnabled = true;
   ipc.exposure = 1.12;
@@ -97,8 +97,11 @@ export function buildCity(scene: Scene): CityData {
   hemi.groundColor = new Color3(0.16, 0.08, 0.14);
 
   const sun = new DirectionalLight("sun", new Vector3(-0.5, -0.48, 0.42), scene);
-  sun.intensity = 1.28;
-  sun.diffuse = new Color3(1, 0.5, 0.24);
+  sun.intensity = 1.42;
+  sun.diffuse = new Color3(1, 0.55, 0.28);
+  const fill = new DirectionalLight("fill", new Vector3(0.35, -0.25, -0.4), scene);
+  fill.intensity = 0.35;
+  fill.diffuse = new Color3(0.45, 0.55, 0.9);
 
   paintSky(scene);
   paintGround(scene);
@@ -179,6 +182,15 @@ function paintSky(scene: Scene) {
   const core = MeshBuilder.CreateSphere("suncore", { diameter: 10, segments: 8 }, scene);
   core.position.set(96, 44, -62);
   core.material = mat(scene, "#ffe0a0", 1, 0);
+
+  const band = MeshBuilder.CreateCylinder("horizon", { height: 28, diameter: 390, tessellation: 20 }, scene);
+  band.position.y = 10;
+  const bm = new StandardMaterial("hz", scene);
+  bm.diffuseColor = new Color3(0.85, 0.35, 0.18);
+  bm.emissiveColor = new Color3(0.45, 0.16, 0.08);
+  bm.alpha = 0.22;
+  bm.backFaceCulling = false;
+  band.material = bm;
 }
 
 function paintGround(scene: Scene) {
@@ -458,6 +470,8 @@ function placeDressing(scene: Scene): { x: number; z: number }[] {
   makeBench(scene, 18, 4, -0.2);
   makeNewsbox(scene, 10, 26);
   makeNewsbox(scene, -30, 4);
+  makeSign(scene, "SOUTH DOCKS", -18, 6.4, 8.2, 7.2, 0.85, "#081018", "#2ef2d0", Math.PI);
+  makeSign(scene, "OPEN LATE", -36, 4.8, 2.2, 4.2, 0.55, "#120808", "#ff4d8d", Math.PI * 0.15);
   makeDecal(scene, "DOCK ST", -26, 5.4, 5.6, 1.15, 0, "#e8d8a0");
   makeDecal(scene, "STRIP", 0, 32.4, 4.8, 1.05, 0, "#ffc83d");
   makeDecal(scene, "PIER", 40, 72, 3.6, 0.9, 0, "#2ef2d0");

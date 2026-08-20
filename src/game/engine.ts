@@ -48,8 +48,8 @@ export class ViceGame {
     fireT: 0, meleeT: 0, reloadT: 0, grounded: true, flash: 0,
     character: "ansem" as CharacterId,
   };
-  camYaw = 0.4;
-  camPitch = 0.28;
+  camYaw = 0.95;
+  camPitch = 0.22;
   camDist = 8.6;
   private camFov = 0.8;
   private camRoll = 0;
@@ -120,7 +120,7 @@ export class ViceGame {
     this.scene.collisionsEnabled = false;
     this.camera = new FreeCamera("cam", new Vector3(0, 8, -12), this.scene);
     this.camera.minZ = 0.15;
-    this.camera.maxZ = 280;
+    this.camera.maxZ = 420;
     this.camera.inputs.clear();
     this.flare = flareTex(this.scene);
     this.city = buildCity(this.scene);

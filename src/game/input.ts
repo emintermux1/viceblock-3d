@@ -119,7 +119,7 @@ export class Input {
   private onMouseMove = (e: MouseEvent) => {
     if (this.showTouch && this.lookId === null) return;
     const locked = !!document.pointerLockElement;
-    if (locked || this.mouseHeld || this.rightHeld) {
+    if (locked || this.mouseHeld || this.rightHeld || !this.showTouch) {
       this.lookDX += e.movementX;
       this.lookDY += e.movementY;
     }

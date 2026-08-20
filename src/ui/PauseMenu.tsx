@@ -17,7 +17,7 @@ export function PauseMenu({ muted, lookInvert, onResume, onMute, onInvert, onExi
         <button type="button" onClick={onInvert}>Look invert: {lookInvert ? "ON" : "OFF"}</button>
         <button type="button" className="ghost" onClick={onExit}>Exit to title</button>
         <p className="pause-hint">
-          Desktop: WASD move, hold left or right mouse to look, Q/E turn, click shoot, F enter, Shift sprint, V melee.
+          Desktop: WASD move, move mouse to look (no lock), Q/E turn, click shoot, F enter, Shift sprint, V melee.
           Phone: left stick walk, right drag look. Drag up looks up.
         </p>
       </div>

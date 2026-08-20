@@ -44,9 +44,11 @@ export function makeBuilding(
   back.material = facadeMat(scene, hex, style, "side");
   back.parent = root;
 
+  box(scene, root, "plinth", w * 1.06, 0.42, d * 1.06, 0, 0.21, 0, "#1a1816");
   box(scene, root, "roof", w * 0.94, 0.2, d * 0.94, 0, h + 0.1, 0, "#141820");
-  box(scene, root, "parapet", w * 1.02, 0.28, 0.12, 0, h + 0.22, d * 0.5, "#1a1c20");
-  box(scene, root, "parapetB", w * 1.02, 0.28, 0.12, 0, h + 0.22, -d * 0.5, "#1a1c20");
+  box(scene, root, "parapet", w * 1.04, 0.42, 0.16, 0, h + 0.28, d * 0.5, "#1a1c20");
+  box(scene, root, "parapetB", w * 1.04, 0.42, 0.16, 0, h + 0.28, -d * 0.5, "#1a1c20");
+  box(scene, root, "cornice", w * 1.08, 0.16, d * 1.08, 0, h + 0.02, 0, "#2a2420");
 
   switch (style) {
     case "tower":
@@ -54,12 +56,14 @@ export function makeBuilding(
       break;
     case "walkup":
       dressWalkup(scene, root, w, d, h);
+      addFrontWindows(scene, root, w, d, h, 3, Math.min(4, Math.max(2, Math.floor(h / 3.2))));
       break;
     case "warehouse":
       dressWarehouse(scene, root, w, d, h);
       break;
     case "shop":
       dressShop(scene, root, w, d, h, hex);
+      addFrontWindows(scene, root, w, d, h, 3, 2, 3.4);
       break;
     default: {
       const _never: never = style;
@@ -85,6 +89,21 @@ function dressTower(scene: Scene, root: Mesh, w: number, d: number, h: number, h
   tip.position.set(w * 0.22, h + 3.8, -d * 0.14);
   tip.material = mat(scene, "#ff4d4d", 0.8);
   tip.parent = root;
+}
+
+function addFrontWindows(scene: Scene, root: Mesh, w: number, d: number, h: number, cols: number, rows: number, startY = 3.15) {
+  const gapX = w / (cols + 1);
+  const gapY = Math.min(2.7, (h - startY - 1.2) / Math.max(1, rows));
+  for (let r = 0; r < rows; r++) {
+    const ly = startY + r * gapY;
+    if (ly > h - 0.8) break;
+    for (let c = 0; c < cols; c++) {
+      const lx = -w * 0.5 + gapX * (c + 1);
+      const lit = ((r * 11 + c * 17 + Math.round(w * 10)) % 7) > 2;
+      box(scene, root, "win", 0.72, 0.95, 0.1, lx, ly, d * 0.5 + 0.08, lit ? "#f2d27a" : "#121820", lit ? 0.62 : 0.04);
+      box(scene, root, "sill", 0.82, 0.08, 0.16, lx, ly - 0.52, d * 0.5 + 0.1, "#2a2420");
+    }
+  }
 }
 
 function dressWalkup(scene: Scene, root: Mesh, w: number, d: number, h: number) {
@@ -362,6 +381,14 @@ export function makeCar(scene: Scene, color: string, kind: "hatch" | "sedan" | "
 
   box(scene, root, "hl", 0.3, 0.13, 0.07, -0.58, 0.54, len * 0.5 - 0.01, "#f2e6c0", 0.95);
   box(scene, root, "hr", 0.3, 0.13, 0.07, 0.58, 0.54, len * 0.5 - 0.01, "#f2e6c0", 0.95);
+  const glowL = MeshBuilder.CreateSphere("hlg", { diameter: 0.22, segments: 6 }, scene);
+  glowL.position.set(-0.58, 0.54, len * 0.5 + 0.04);
+  glowL.material = mat(scene, "#ffe6a8", 1);
+  glowL.parent = root;
+  const glowR = MeshBuilder.CreateSphere("hrg", { diameter: 0.22, segments: 6 }, scene);
+  glowR.position.set(0.58, 0.54, len * 0.5 + 0.04);
+  glowR.material = mat(scene, "#ffe6a8", 1);
+  glowR.parent = root;
   box(scene, root, "tl", 0.28, 0.11, 0.07, -0.62, 0.52, -len * 0.5 + 0.01, "#ff2a2a", 0.85);
   box(scene, root, "tr", 0.28, 0.11, 0.07, 0.62, 0.52, -len * 0.5 + 0.01, "#ff2a2a", 0.85);
 
@@ -515,7 +542,11 @@ function assemblePerson(scene: Scene, kit: Kit): Mesh {
 
   box(scene, root, "pelvis", tw * 0.9, 0.2 * sy, td * 0.95, 0, pelvisY, 0, kit.skirt || kit.pelvis);
   if (kit.shirt) box(scene, root, "tee", tw * 0.88, 0.16, td * 0.88, 0, torsoY - th * 0.42, 0, kit.shirt);
-  box(scene, root, "torso", tw, th, td, 0, torsoY, 0, kit.torso, kit.torsoE ?? 0);
+  const torso = MeshBuilder.CreateSphere("torso", { diameter: 1, segments: 8 }, scene);
+  torso.scaling.set(tw, th, td);
+  torso.position.y = torsoY;
+  torso.material = mat(scene, kit.torso, kit.torsoE ?? 0);
+  torso.parent = root;
   if (kit.vest) box(scene, root, "vest", tw * 1.08, th * 0.85, td * 1.1, 0, torsoY, 0, kit.vest, 0.05);
   if (kit.glow) {
     box(scene, root, "trim", tw * 1.04, 0.05, td * 1.04, 0, torsoY + th * 0.42, 0, kit.glow, 0.65);
