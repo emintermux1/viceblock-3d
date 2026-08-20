@@ -58,6 +58,9 @@ export class Sfx {
   private reloadEl: HTMLAudioElement | null = null;
   private meleeEl: HTMLAudioElement | null = null;
   private emptyEl: HTMLAudioElement | null = null;
+  private webEl: HTMLAudioElement | null = null;
+  private whooshEl: HTMLAudioElement | null = null;
+  private impactEl: HTMLAudioElement | null = null;
 
   private load(src: string, loop = false, vol = 0.5) {
     const a = new Audio(src);
@@ -76,6 +79,9 @@ export class Sfx {
     this.reloadEl = this.load("/audio/reload.mp3", false, 0.4);
     this.meleeEl = this.load("/audio/melee.mp3", false, 0.45);
     this.emptyEl = this.load("/audio/empty.mp3", false, 0.3);
+    this.webEl = this.load("/audio/web.mp3", false, 0.42);
+    this.whooshEl = this.load("/audio/whoosh.mp3", false, 0.38);
+    this.impactEl = this.load("/audio/impact.mp3", false, 0.5);
   }
 
   setMuted(m: boolean) {
@@ -92,6 +98,9 @@ export class Sfx {
   punch() { this.ensure(); playFile(this.meleeEl, this.muted); }
   reload() { this.ensure(); playFile(this.reloadEl, this.muted); }
   empty() { this.ensure(); playFile(this.emptyEl, this.muted); }
+  web() { this.ensure(); playFile(this.webEl, this.muted); }
+  whoosh() { this.ensure(); playFile(this.whooshEl, this.muted); }
+  impact() { this.ensure(); playFile(this.impactEl, this.muted); }
 
   footstep(rate: number) {
     if (this.muted) return;

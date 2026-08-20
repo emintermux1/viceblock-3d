@@ -89,6 +89,13 @@ button, .wallet-adapter-button { font-family: inherit; }
 .char-fig i { position: absolute; display: block; }
 .cf-head { width: 22px; height: 22px; border-radius: 50%; left: 25px; top: 24px; background: #f0d4c0; }
 .cf-hair { width: 26px; height: 12px; left: 23px; top: 16px; background: #111; border-radius: 10px 10px 4px 4px; }
+.cf-helm {
+  width: 26px; height: 26px; border-radius: 50%; left: 23px; top: 18px; background: #102028;
+}
+.cf-visor {
+  width: 20px; height: 6px; left: 26px; top: 28px; background: #2ef2d0;
+  box-shadow: 0 0 8px rgba(46,242,208,0.7);
+}
 .cf-torso { width: 28px; height: 38px; left: 22px; top: 46px; background: #2ef2d0; }
 .cf-arm { width: 8px; height: 32px; top: 48px; background: #2ef2d0; }
 .cf-arm.l { left: 13px; }
@@ -96,18 +103,19 @@ button, .wallet-adapter-button { font-family: inherit; }
 .cf-legs { width: 22px; height: 34px; left: 25px; top: 82px; background: #1a2430; }
 .cf-shoes { width: 26px; height: 8px; left: 23px; top: 114px; background: #111; }
 .cf-ear { display: none; }
-.fig-ansem .cf-hair { background: #111; height: 14px; top: 14px; }
-.fig-ansem .cf-torso, .fig-ansem .cf-arm { background: #2ef2d0; box-shadow: 0 0 10px rgba(46,242,208,0.45); }
+.fig-ansem .cf-helm { background: #102028; }
+.fig-ansem .cf-visor { background: #2ef2d0; }
+.fig-ansem .cf-torso, .fig-ansem .cf-arm { background: #102028; box-shadow: 0 0 10px rgba(46,242,208,0.35); }
 .fig-orangie { transform: scaleX(1.12); }
-.fig-orangie .cf-head { background: #c4a070; width: 24px; left: 24px; }
-.fig-orangie .cf-hair { background: #e07020; height: 16px; width: 30px; left: 21px; top: 12px; transform: rotate(-8deg); }
-.fig-orangie .cf-torso { background: #ff8a3d; width: 34px; left: 19px; height: 36px; }
+.fig-orangie .cf-helm { background: #1a2438; width: 30px; left: 21px; }
+.fig-orangie .cf-visor { background: #ff8a3d; width: 22px; left: 25px; }
+.fig-orangie .cf-torso { background: #1a2438; width: 34px; left: 19px; height: 36px; }
 .fig-orangie .cf-arm { background: #ff8a3d; }
 .fig-orangie .cf-legs { background: #6a6048; width: 26px; left: 23px; }
 .fig-orangie .cf-shoes { background: #2a2018; }
 .fig-cupsey { transform: scale(0.92); }
-.fig-cupsey .cf-head { background: #f5dcc8; }
-.fig-cupsey .cf-hair { width: 16px; height: 16px; border-radius: 50%; left: 40px; top: 10px; background: #ff4da6; }
+.fig-cupsey .cf-helm { background: #1a1018; }
+.fig-cupsey .cf-visor { background: #ff4da6; }
 .fig-cupsey .cf-torso { background: #ff4da6; height: 26px; top: 46px; }
 .fig-cupsey .cf-arm { background: #ff4da6; height: 26px; }
 .fig-cupsey .cf-legs { background: #1a1a1e; height: 22px; top: 72px; }
@@ -135,8 +143,14 @@ button, .wallet-adapter-button { font-family: inherit; }
   text-align: right;
   max-width: 42vw;
 }
-.hud-money { font-size: 26px; color: #7dffb0; font-weight: 700; }
-.hud-weapon, .hud-carhp { font-size: 14px; color: var(--text); opacity: 0.9; }
+.hud-money { display: none; }
+.hud-weapon, .hud-carhp { display: none; }
+.hud-line {
+  font-size: 11px; letter-spacing: 0.16em; color: var(--dim);
+  display: flex; gap: 8px; align-items: baseline;
+}
+.hud-line.ready { color: var(--teal); }
+.hud-line em { font-style: normal; color: var(--gold); }
 .hud-save { font-size: 9px; letter-spacing: 0.16em; color: var(--dim); margin-top: 4px; }
 .hud-map {
   position: absolute;
@@ -255,13 +269,11 @@ button, .wallet-adapter-button { font-family: inherit; }
   border: 2px solid rgba(255,255,255,0.22); background: rgba(10,16,20,0.62);
   color: #fff; font-size: 22px; line-height: 1; cursor: pointer;
 }
-.pad-shoot { right: 4px; bottom: 4px; width: 72px; height: 72px; font-size: 28px; background: rgba(160,30,40,0.7); }
-.pad-enter { right: 86px; bottom: 10px; }
-.pad-jump, .pad-brake { right: 12px; bottom: 88px; }
-.pad-sprint { right: 86px; bottom: 86px; font-size: 12px; letter-spacing: 0.08em; }
-.pad-reload { right: 154px; bottom: 18px; width: 50px; height: 50px; font-size: 16px; }
-.pad-melee { right: 148px; bottom: 78px; width: 50px; height: 50px; font-size: 16px; }
-.pad-pause { right: 4px; bottom: 168px; width: 42px; height: 42px; font-size: 13px; }
+.pad-shoot { right: 4px; bottom: 4px; width: 78px; height: 78px; font-size: 15px; letter-spacing: 0.08em; background: rgba(160,30,40,0.72); }
+.pad-swing { right: 90px; bottom: 8px; width: 72px; height: 72px; font-size: 13px; letter-spacing: 0.1em; background: rgba(16,40,40,0.78); }
+.pad-zip { right: 90px; bottom: 88px; width: 58px; height: 58px; font-size: 13px; letter-spacing: 0.12em; background: rgba(40,24,10,0.75); }
+.pad-jump { right: 12px; bottom: 92px; width: 52px; height: 52px; font-size: 18px; }
+.pad-pause { right: 4px; bottom: 178px; width: 42px; height: 42px; font-size: 13px; }
 
 .wallet-adapter-button { background: #122028 !important; }
 

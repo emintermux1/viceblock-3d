@@ -18,6 +18,9 @@ export class Input {
   brakeHeld = false;
   surrenderPressed = false;
   talkPressed = false;
+  swingHeld = false;
+  zipHeld = false;
+  zipPressed = false;
 
   stickActive = false;
   stickBaseX = 0;
@@ -32,6 +35,10 @@ export class Input {
   private stickY = 0;
   private shootHeld = false;
   private enterTouch = false;
+  private swingTouch = false;
+  private zipTouch = false;
+  private zipId: number | null = null;
+  private zipWas = false;
   private sprintHeld = false;
   private jumpTouch = false;
   private stickMiss = 0;
@@ -141,10 +148,11 @@ export class Input {
     this.keys.clear();
     this.clearStick();
     this.shootHeld = this.enterTouch = this.sprintHeld = this.jumpTouch = this.brakeHeld = false;
+    this.swingTouch = this.zipTouch = false;
     this.mouseHeld = false;
     this.rightHeld = false;
     this.livePointers.clear();
-    this.shootId = this.enterId = this.sprintId = this.jumpId = this.brakeId = this.lookId = null;
+    this.shootId = this.enterId = this.sprintId = this.jumpId = this.brakeId = this.lookId = this.zipId = null;
   };
 
   private onWindowPointerUp = (e: PointerEvent) => {
@@ -173,8 +181,10 @@ export class Input {
     this.sprint = this.down("shift") || this.sprintHeld;
     this.jumpHeld = this.down("space") || this.jumpTouch;
     this.enterHeld = this.enterTouch || this.down("f");
+    this.swingHeld = this.down("f") || this.swingTouch;
+    this.zipHeld = this.down("e") || this.zipTouch;
+    this.zipPressed = (!this.zipWas && this.zipTouch) || this.edge("e");
     if (this.down("q")) this.lookDX -= 22;
-    if (this.down("e")) this.lookDX += 22;
     const locked = !!document.pointerLockElement && this.lockGrace === 0;
     this.fireHeld = this.shootHeld || this.down("control") || (this.mouseHeld && !this.rightHeld && (locked || !this.showTouch));
     this.shootPressed = (!this.shootWas && this.shootHeld) || this.edge("control") || (!this.mouseWas && this.mouseHeld && !this.rightHeld && (locked || !this.showTouch));
@@ -190,13 +200,14 @@ export class Input {
     this.enterWas = this.enterTouch;
     this.mouseWas = this.mouseHeld;
     this.jumpWas = this.jumpTouch;
+    this.zipWas = this.zipTouch;
     this.prev = new Set(this.keys);
   }
 
   endFrame() {
     this.shootPressed = this.enterPressed = this.jumpPressed = false;
     this.reloadPressed = this.meleePressed = this.pausePressed = false;
-    this.surrenderPressed = this.talkPressed = false;
+    this.surrenderPressed = this.talkPressed = this.zipPressed = false;
     this.lookDX = 0;
     this.lookDY = 0;
   }
@@ -212,12 +223,13 @@ export class Input {
   private down(k: string) { return this.keys.has(k); }
   private edge(k: string) { return this.keys.has(k) && !this.prev.has(k); }
 
-  onPointerDown(e: PointerEvent, hit: "stick" | "shoot" | "enter" | "jump" | "sprint" | "brake" | "look" | "reload" | "melee" | "none") {
+  onPointerDown(e: PointerEvent, hit: "stick" | "shoot" | "enter" | "jump" | "sprint" | "brake" | "look" | "reload" | "melee" | "swing" | "zip" | "none") {
     this.showTouch = true;
     this.livePointers.add(e.pointerId);
     if (e.pointerType === "touch") this.showTouch = true;
     if (hit === "shoot") { this.shootHeld = true; this.shootId = e.pointerId; this.cap(e); return; }
-    if (hit === "enter") { this.enterTouch = true; this.enterId = e.pointerId; this.cap(e); return; }
+    if (hit === "enter" || hit === "swing") { this.enterTouch = true; this.swingTouch = true; this.enterId = e.pointerId; this.cap(e); return; }
+    if (hit === "zip") { this.zipTouch = true; this.zipId = e.pointerId; this.cap(e); return; }
     if (hit === "jump") { this.jumpTouch = true; this.jumpId = e.pointerId; this.cap(e); return; }
     if (hit === "sprint") { this.sprintHeld = true; this.sprintId = e.pointerId; this.cap(e); return; }
     if (hit === "brake") { this.brakeHeld = true; this.brakeId = e.pointerId; this.cap(e); return; }
@@ -273,7 +285,8 @@ export class Input {
     this.livePointers.delete(e.pointerId);
     if (e.pointerId === this.stickId) this.clearStick();
     if (e.pointerId === this.shootId) { this.shootHeld = false; this.shootId = null; }
-    if (e.pointerId === this.enterId) { this.enterTouch = false; this.enterId = null; }
+    if (e.pointerId === this.enterId) { this.enterTouch = false; this.swingTouch = false; this.enterId = null; }
+    if (e.pointerId === this.zipId) { this.zipTouch = false; this.zipId = null; }
     if (e.pointerId === this.sprintId) { this.sprintHeld = false; this.sprintId = null; }
     if (e.pointerId === this.jumpId) { this.jumpTouch = false; this.jumpId = null; }
     if (e.pointerId === this.brakeId) { this.brakeHeld = false; this.brakeId = null; }

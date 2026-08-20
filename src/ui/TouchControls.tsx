@@ -1,20 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import type { Input } from "../game/input";
 
-type Props = { input: Input; hidden?: boolean; inCar?: boolean; onPause: () => void };
+type Props = { input: Input; hidden?: boolean; onPause: () => void };
 
-function hitOf(el: EventTarget | null): "stick" | "shoot" | "enter" | "jump" | "sprint" | "brake" | "look" | "reload" | "melee" | "pause" | "none" {
+function hitOf(el: EventTarget | null): "stick" | "shoot" | "swing" | "zip" | "jump" | "look" | "pause" | "none" {
   const node = el as HTMLElement | null;
   const kind = node?.closest?.("[data-hit]")?.getAttribute("data-hit");
-  if (
-    kind === "stick" || kind === "shoot" || kind === "enter" || kind === "jump" ||
-    kind === "sprint" || kind === "brake" || kind === "look" || kind === "pause" ||
-    kind === "reload" || kind === "melee"
-  ) return kind;
+  if (kind === "stick" || kind === "shoot" || kind === "swing" || kind === "zip" || kind === "jump" || kind === "look" || kind === "pause") {
+    return kind;
+  }
   return "none";
 }
 
-export function TouchControls({ input, hidden, inCar, onPause }: Props) {
+export function TouchControls({ input, hidden, onPause }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [, setTick] = useState(0);
   const bump = () => setTick((n) => n + 1);
@@ -25,7 +23,7 @@ export function TouchControls({ input, hidden, inCar, onPause }: Props) {
     const down = (e: PointerEvent) => {
       const hit = hitOf(e.target);
       if (hit === "pause") { e.preventDefault(); onPause(); return; }
-      if (hit === "shoot" || hit === "enter" || hit === "jump" || hit === "sprint" || hit === "brake" || hit === "reload" || hit === "melee") {
+      if (hit === "shoot" || hit === "swing" || hit === "zip" || hit === "jump") {
         e.preventDefault();
         input.onPointerDown(e, hit);
         bump();
@@ -77,13 +75,10 @@ export function TouchControls({ input, hidden, inCar, onPause }: Props) {
       <div className="touch-look" data-hit="look" />
       <div className="touch-right">
         <button type="button" className="pad-btn pad-pause" data-hit="pause" aria-label="Pause">II</button>
-        <button type="button" className="pad-btn pad-reload" data-hit="reload" aria-label="Reload">R</button>
-        <button type="button" className="pad-btn pad-melee" data-hit="melee" aria-label="Melee">V</button>
-        <button type="button" className="pad-btn pad-sprint" data-hit="sprint" aria-label="Sprint">SPR</button>
-        {!inCar && <button type="button" className="pad-btn pad-jump" data-hit="jump" aria-label="Jump">⬆</button>}
-        {inCar && <button type="button" className="pad-btn pad-brake" data-hit="brake" aria-label="Brake">🛑</button>}
-        <button type="button" className="pad-btn pad-enter" data-hit="enter" aria-label="Enter vehicle">🚗</button>
-        <button type="button" className="pad-btn pad-shoot" data-hit="shoot" aria-label="Shoot">🔫</button>
+        <button type="button" className="pad-btn pad-jump" data-hit="jump" aria-label="Jump">⬆</button>
+        <button type="button" className="pad-btn pad-zip" data-hit="zip" aria-label="Zip">ZIP</button>
+        <button type="button" className="pad-btn pad-swing" data-hit="swing" aria-label="Salin">SALIN</button>
+        <button type="button" className="pad-btn pad-shoot" data-hit="shoot" aria-label="Ates">ATEŞ</button>
       </div>
     </div>
   );

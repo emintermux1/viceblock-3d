@@ -1,5 +1,6 @@
-import { Mesh, MeshBuilder, Scene, Vector3 } from "@babylonjs/core";
+import { Mesh, MeshBuilder, Quaternion, Scene, Vector3 } from "@babylonjs/core";
 import { facadeMat, flareTex, makeDecal, makeSign, mat, uniqueMat } from "./art";
+import { clamp } from "./constants";
 import type { CharacterId } from "./types";
 
 export { facadeMat, flareTex, makeDecal, makeSign, mat, uniqueMat } from "./art";
@@ -457,6 +458,8 @@ type Kit = {
   glow?: string;
   skirt?: string;
   vest?: string;
+  mask?: boolean;
+  lens?: string;
 };
 
 function limb(scene: Scene, root: Mesh, name: string, x: number, y: number, dia: number, h: number, hex: string): Mesh {
@@ -554,13 +557,20 @@ function assemblePerson(scene: Scene, kit: Kit): Mesh {
   }
   if (kit.crop) box(scene, root, "mid", tw * 0.7, 0.14, td * 0.7, 0, torsoY - th * 0.62, 0, skin);
 
-  cyl(scene, root, "nk", 0.13 * sy, kit.neck, 0, headY - 0.2 * sy, 0, skin, 7);
+  cyl(scene, root, "nk", 0.13 * sy, kit.neck, 0, headY - 0.2 * sy, 0, kit.mask ? kit.torso : skin, 7);
   const head = MeshBuilder.CreateSphere("hd", { diameter: 0.36, segments: 8 }, scene);
   head.position.y = headY;
-  head.material = mat(scene, skin);
+  head.material = mat(scene, kit.mask ? kit.torso : skin, kit.mask ? 0.08 : 0);
   head.parent = root;
-  face(scene, root, headY + 0.02, 0.155);
-  hairOn(scene, root, kit.hairStyle, kit.hair, headY);
+  if (kit.mask) {
+    box(scene, root, "visor", 0.28, 0.07, 0.08, 0, headY + 0.02, 0.15, kit.lens || "#2ef2d0", 0.85);
+    box(scene, root, "helm", 0.32, 0.12, 0.28, 0, headY + 0.12, 0, kit.torso, 0.1);
+    box(scene, root, "shootL", 0.08, 0.06, 0.1, -tw * 0.52, torsoY + th * 0.05, 0.08, "#111114", 0.2);
+    box(scene, root, "shootR", 0.08, 0.06, 0.1, tw * 0.52, torsoY + th * 0.05, 0.08, "#111114", 0.2);
+  } else {
+    face(scene, root, headY + 0.02, 0.155);
+    hairOn(scene, root, kit.hairStyle, kit.hair, headY);
+  }
 
   const armH = 0.52 * sy;
   const legH = (kit.shorts ? 0.38 : 0.72) * sy;
@@ -595,22 +605,25 @@ function assemblePerson(scene: Scene, kit: Kit): Mesh {
 export function makeHero(scene: Scene, id: CharacterId): Mesh {
   if (id === "orangie") {
     return assemblePerson(scene, {
-      name: "hero-orangie", skin: "#c4a070", torso: "#ff8a3d", torsoE: 0.08,
-      pelvis: "#6a6048", legs: "#6a6048", shoes: "#2a2018", hair: "#e07020",
-      hairStyle: "messy", sx: 1.24, sy: 0.95, neck: 0.2, shirt: "#f4f0e8",
+      name: "hero-orangie", skin: "#c4a070", torso: "#1a2438", torsoE: 0.04,
+      pelvis: "#ff8a3d", legs: "#1a2438", shoes: "#111114", hair: "#e07020",
+      hairStyle: "messy", sx: 1.24, sy: 0.95, neck: 0.2, glow: "#ff8a3d",
+      mask: true, lens: "#ff8a3d",
     });
   }
   if (id === "cupsey") {
     return assemblePerson(scene, {
-      name: "hero-cupsey", skin: "#f5dcc8", torso: "#ff4da6", torsoE: 0.12,
-      pelvis: "#1a1a1e", legs: "#1a1a1e", shoes: "#f0f0f0", hair: "#ff4da6",
-      hairStyle: "bun", sx: 0.88, sy: 0.9, neck: 0.12, crop: true, shorts: true, earring: true,
+      name: "hero-cupsey", skin: "#f5dcc8", torso: "#1a1018", torsoE: 0.06,
+      pelvis: "#ff4da6", legs: "#1a1018", shoes: "#f0f0f0", hair: "#ff4da6",
+      hairStyle: "bun", sx: 0.88, sy: 0.9, neck: 0.12, glow: "#ff4da6",
+      mask: true, lens: "#ff4da6",
     });
   }
   return assemblePerson(scene, {
-    name: "hero-ansem", skin: "#f0d4c0", torso: "#2ef2d0", torsoE: 0.14,
-    pelvis: "#1a2430", legs: "#1a2430", shoes: "#111114", hair: "#111114",
-    hairStyle: "beanie", sx: 0.92, sy: 1.0, neck: 0.13, chain: true, glow: "#2ef2d0",
+    name: "hero-ansem", skin: "#f0d4c0", torso: "#102028", torsoE: 0.08,
+    pelvis: "#0a1818", legs: "#102028", shoes: "#111114", hair: "#111114",
+    hairStyle: "beanie", sx: 0.92, sy: 1.0, neck: 0.13, glow: "#2ef2d0",
+    mask: true, lens: "#2ef2d0",
   });
 }
 
@@ -638,6 +651,43 @@ export function makeCop(scene: Scene): Mesh {
     shoes: "#111114", hair: "#1a2438", hairStyle: "peak", sx: 1.04, sy: 1.02, neck: 0.15,
     vest: "#1a3a88", badge: true,
   });
+}
+
+export function tickSwingPose(mesh: Mesh, t: number, attached: boolean) {
+  const tuck = attached ? 0.85 : 0.35;
+  const pump = Math.sin(t * 8) * 0.12;
+  for (const ch of mesh.getChildMeshes(false)) {
+    if (ch.name === "larm") ch.rotation.x = attached ? -2.3 : -1.1;
+    else if (ch.name === "rarm") ch.rotation.x = attached ? -2.15 + pump : -0.8;
+    else if (ch.name === "lleg") ch.rotation.x = tuck;
+    else if (ch.name === "rleg") ch.rotation.x = tuck * 0.7;
+  }
+}
+
+export function makeSilk(scene: Scene, hex: string): Mesh {
+  const m = MeshBuilder.CreateCylinder("silk", { height: 1, diameter: 0.045, tessellation: 6 }, scene);
+  m.material = mat(scene, hex, 0.7, 0);
+  m.setEnabled(false);
+  return m;
+}
+
+export function placeSilk(mesh: Mesh, ax: number, ay: number, az: number, bx: number, by: number, bz: number) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const dz = bz - az;
+  const len = Math.hypot(dx, dy, dz) || 0.01;
+  mesh.setEnabled(true);
+  mesh.position.set((ax + bx) * 0.5, (ay + by) * 0.5, (az + bz) * 0.5);
+  mesh.scaling.set(1, len, 1);
+  const dir = new Vector3(dx / len, dy / len, dz / len);
+  const up = new Vector3(0, 1, 0);
+  const axis = Vector3.Cross(up, dir);
+  if (axis.length() > 0.0001) {
+    mesh.rotationQuaternion = Quaternion.RotationAxis(axis.normalize(), Math.acos(clamp(Vector3.Dot(up, dir), -1, 1)));
+  } else {
+    mesh.rotationQuaternion = null;
+    mesh.rotation.set(0, 0, 0);
+  }
 }
 
 export function tickWalk(mesh: Mesh, t: number, moving: boolean) {

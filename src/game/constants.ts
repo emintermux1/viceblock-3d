@@ -5,8 +5,8 @@ export const STICK_DEAD = 8;
 
 export const WALK = 5.7;
 export const SPRINT = 9.3;
-export const JUMP_VEL = 7.2;
-export const GRAVITY = -22;
+export const JUMP_VEL = 8.8;
+export const GRAVITY = -26;
 export const PLAYER_R = 0.42;
 export const PLAYER_H = 1.8;
 
@@ -39,9 +39,9 @@ export const REGEN_DELAY = 6;
 export const REGEN_RATE = 8;
 
 export const CHAR: Record<CharacterId, { name: string; kit: string; hp: number; speed: number; cash: number; color: string; accent: string }> = {
-  ansem: { name: "ANSEM", kit: "BALANCED", hp: 100, speed: 1, cash: 1, color: "#2ef2d0", accent: "#0a3a38" },
-  orangie: { name: "ORANGIE", kit: "TANK", hp: 130, speed: 0.88, cash: 0.9, color: "#ff8a3d", accent: "#3a2010" },
-  cupsey: { name: "CUPSEY", kit: "HUSTLE", hp: 80, speed: 1.14, cash: 1.25, color: "#ff4da6", accent: "#3a1028" },
+  ansem: { name: "ANSEM", kit: "LINE", hp: 100, speed: 1, cash: 1, color: "#2ef2d0", accent: "#0a3a38" },
+  orangie: { name: "ORANGIE", kit: "ANCHOR", hp: 130, speed: 0.88, cash: 0.9, color: "#ff8a3d", accent: "#3a2010" },
+  cupsey: { name: "CUPSEY", kit: "DART", hp: 80, speed: 1.14, cash: 1.25, color: "#ff4da6", accent: "#3a1028" },
 };
 
 export const LOC = {
@@ -71,7 +71,8 @@ export function dist2(ax: number, az: number, bx: number, bz: number) {
   return Math.hypot(ax - bx, az - bz);
 }
 
-export const SAVE_KEY = "viceblock3d-save";
+export const SAVE_KEY = "viceblock3d-line-v2";
+export const CRANE_GOAL = { x: 58, z: 80, y: 16 };
 
 export const CAR_SPEC: Record<"hatch" | "sedan" | "muscle" | "cop", {
   mass: number; torque: number; top: number; brake: number; steer: number; traction: number; drift: number; hotwire: number;

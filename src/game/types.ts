@@ -1,7 +1,8 @@
 export type CharacterId = "ansem" | "orangie" | "cupsey";
-export type MissionId = "jack" | "deliver" | "rob" | "escape" | "free";
-export type PedState = "wander" | "flee" | "down" | "call" | "sit" | "wait";
-export type CopState = "chase" | "down";
+export type MissionId = "launch" | "crane" | "sweep" | "ghost" | "free";
+export type PedState = "wander" | "flee" | "down" | "call" | "sit" | "wait" | "webbed";
+export type MoveMode = "ground" | "air" | "swing" | "zip" | "crawl";
+export type CopState = "chase" | "down" | "webbed";
 export type InteriorId = "street" | "mart" | "garage" | "jail";
 export type BuildingStyle = "tower" | "walkup" | "warehouse" | "shop";
 
@@ -34,6 +35,9 @@ export type HudState = {
   searching: boolean;
   localSave: boolean;
   interior: InteriorId;
+  mode: MoveMode;
+  speed: number;
+  canAttach: boolean;
 };
 
 export const emptyHud = (): HudState => ({
@@ -65,6 +69,9 @@ export const emptyHud = (): HudState => ({
   searching: false,
   localSave: false,
   interior: "street",
+  mode: "ground",
+  speed: 0,
+  canAttach: false,
 });
 
 export type AABB = {
