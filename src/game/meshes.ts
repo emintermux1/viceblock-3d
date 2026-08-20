@@ -665,8 +665,8 @@ export function tickSwingPose(mesh: Mesh, t: number, attached: boolean) {
 }
 
 export function makeSilk(scene: Scene, hex: string): Mesh {
-  const m = MeshBuilder.CreateCylinder("silk", { height: 1, diameter: 0.045, tessellation: 6 }, scene);
-  m.material = mat(scene, hex, 0.7, 0);
+  const m = MeshBuilder.CreateCylinder("silk", { height: 1, diameter: 0.09, tessellation: 6 }, scene);
+  m.material = mat(scene, hex, 1.15, 0);
   m.setEnabled(false);
   return m;
 }

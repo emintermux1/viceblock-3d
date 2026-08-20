@@ -21,7 +21,7 @@ export function HUD({ hud, onTapMusic }: Props) {
         </div>
         <div className={"hud-line" + (hud.canAttach ? " ready" : "")}>
           {hud.canAttach ? "SALIN READY" : hud.mode.toUpperCase()}
-          <em>{Math.round(hud.speed)}</em>
+          <em>SPD {Math.round(hud.speed)}</em>
         </div>
       </div>
       <div className="hud-tr">
