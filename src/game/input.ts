@@ -26,6 +26,7 @@ export class Input {
   stickKnobY = 0;
   stickId: number | null = null;
   showTouch = false;
+  lookInvert = false;
 
   private stickX = 0;
   private stickY = 0;
@@ -118,7 +119,7 @@ export class Input {
   private onMouseMove = (e: MouseEvent) => {
     if (this.showTouch && this.lookId === null) return;
     const locked = !!document.pointerLockElement;
-    if (locked || this.mouseHeld || this.rightHeld || !this.showTouch) {
+    if (locked || this.mouseHeld || this.rightHeld) {
       this.lookDX += e.movementX;
       this.lookDY += e.movementY;
     }

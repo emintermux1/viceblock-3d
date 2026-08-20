@@ -8,6 +8,18 @@ export function HUD({ hud, onTapMusic }: Props) {
   const live = hud.radioLive;
   return (
     <div className="hud" aria-hidden>
+      <div className="hud-left">
+        <div className="hud-bars">
+          <span className="hud-hp-lab">HP</span>
+          <i className="bar-track">
+            <i className="bar health" style={{ width: (hud.health / Math.max(1, hud.maxHealth)) * 100 + "%" }} />
+          </i>
+        </div>
+        <div className="hud-job">
+          <b>{hud.missionTitle}</b>
+          <span>{hud.missionHint}</span>
+        </div>
+      </div>
       <div className="hud-tr">
         <div className="hud-money">{"$" + hud.cash.toLocaleString()}</div>
         <div className="hud-weapon">
@@ -27,21 +39,11 @@ export function HUD({ hud, onTapMusic }: Props) {
             <span key={i} className={i < hud.stars ? "star on" : "star"}>★</span>
           ))}
         </div>
+        {hud.searching ? <div className="hud-search">SEARCHING</div> : null}
       </div>
       <div className="hud-map"><MiniMap hud={hud} /></div>
-      <div className="hud-bars">
-        <span className="hud-hp-lab">HP</span>
-        <i className="bar-track">
-          <i className="bar health" style={{ width: (hud.health / Math.max(1, hud.maxHealth)) * 100 + "%" }} />
-        </i>
-      </div>
-      {hud.searching ? <div className="hud-search">SEARCHING SOUTH DOCKS</div> : null}
       {hud.prompt ? <div className="hud-prompt">{hud.prompt}</div> : null}
       {hud.subtitle ? <div className="hud-sub">{hud.subtitle}</div> : null}
-      <div className="hud-job">
-        <b>{hud.missionTitle}</b>
-        <span>{hud.missionHint}</span>
-      </div>
       {hud.busted ? <div className="hud-bust">BUSTED</div> : null}
     </div>
   );

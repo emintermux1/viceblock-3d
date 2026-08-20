@@ -3,8 +3,8 @@ import type { CharacterId } from "./types";
 export const STICK_RADIUS = 56;
 export const STICK_DEAD = 8;
 
-export const WALK = 5.2;
-export const SPRINT = 8.6;
+export const WALK = 5.7;
+export const SPRINT = 9.3;
 export const JUMP_VEL = 7.2;
 export const GRAVITY = -22;
 export const PLAYER_R = 0.42;
