@@ -83,27 +83,30 @@ function faceRoadYaw(x: number, z: number): number {
 }
 
 export function buildCity(scene: Scene): CityData {
-  scene.clearColor = new Color4(0.12, 0.06, 0.14, 1);
+  scene.clearColor = new Color4(0.1, 0.05, 0.12, 1);
   scene.fogMode = Scene.FOGMODE_EXP2;
-  scene.fogColor = new Color3(0.72, 0.38, 0.28);
-  scene.fogDensity = 0.0016;
-  scene.ambientColor = new Color3(0.38, 0.2, 0.22);
+  scene.fogColor = new Color3(0.62, 0.3, 0.22);
+  scene.fogDensity = 0.0021;
+  scene.ambientColor = new Color3(0.14, 0.08, 0.1);
   const ipc = scene.imageProcessingConfiguration;
   ipc.toneMappingEnabled = true;
-  ipc.exposure = 1.12;
-  ipc.contrast = 1.18;
+  ipc.exposure = 1.04;
+  ipc.contrast = 1.32;
 
-  const hemi = new HemisphericLight("hemi", new Vector3(0.2, 1, 0.15), scene);
-  hemi.intensity = 0.72;
-  hemi.diffuse = new Color3(1, 0.58, 0.62);
-  hemi.groundColor = new Color3(0.16, 0.08, 0.14);
+  const hemi = new HemisphericLight("hemi", new Vector3(0.15, 1, 0.1), scene);
+  hemi.intensity = 0.36;
+  hemi.diffuse = new Color3(1, 0.55, 0.58);
+  hemi.groundColor = new Color3(0.28, 0.12, 0.08);
 
-  const sun = new DirectionalLight("sun", new Vector3(-0.5, -0.48, 0.42), scene);
-  sun.intensity = 1.42;
-  sun.diffuse = new Color3(1, 0.55, 0.28);
-  const fill = new DirectionalLight("fill", new Vector3(0.35, -0.25, -0.4), scene);
-  fill.intensity = 0.35;
-  fill.diffuse = new Color3(0.45, 0.55, 0.9);
+  const sun = new DirectionalLight("sun", new Vector3(-0.55, -0.42, 0.38), scene);
+  sun.intensity = 1.78;
+  sun.diffuse = new Color3(1, 0.46, 0.2);
+  const rim = new DirectionalLight("rim", new Vector3(0.55, -0.15, -0.55), scene);
+  rim.intensity = 0.62;
+  rim.diffuse = new Color3(0.42, 0.55, 0.95);
+  const bounce = new DirectionalLight("bounce", new Vector3(0.1, 0.65, 0.2), scene);
+  bounce.intensity = 0.22;
+  bounce.diffuse = new Color3(0.7, 0.32, 0.18);
 
   paintSky(scene);
   paintGround(scene);

@@ -1,5 +1,5 @@
 import {
-  Color3, Engine, FreeCamera, Mesh, MeshBuilder, ParticleSystem, Scene,
+  Color3, Engine, FreeCamera, Mesh, MeshBuilder, ParticleSystem, PointLight, Quaternion, Scene,
   StandardMaterial, Vector3,
 } from "@babylonjs/core";
 import { gestureUnlock, radio, sharedSfx } from "./audio";
@@ -13,7 +13,10 @@ import {
   clamp, dist2,
 } from "./constants";
 import type { Input } from "./input";
-import { flareTex, lookDir, makeCar, makeCop, makeHero, makePed, makeSilk, mat, placeSilk, tickCrawlPose, tickSwingPose, tickWalk } from "./meshes";
+import {
+  findNamed, flareTex, lookDir, makeCar, makeCop, makeHero, makePed, makeSilk, mat, placeSilk,
+  setGunHolstered, tickCrawlPose, tickGunPose, tickSwingPose, tickWalk,
+} from "./meshes";
 import {
   nearestWall, pickAnchor, standY, stepAir, stepSwing, stepZip, unstickPlayer, type Anchor, type SwingRope,
 } from "./swing";
@@ -1035,15 +1038,15 @@ export class ViceGame {
   }
 
   private combat(dt: number) {
-    if (this.input.meleePressed && this.player.meleeT <= 0) {
+    if (this.input.meleePressed && this.player.meleeT <= 0 && !this.drive) {
       this.player.meleeT = MELEE_CD;
       sharedSfx.punch();
       this.meleeHit();
     }
-    if (this.input.shootPressed || (this.input.fireHeld && this.player.fireT <= 0)) {
+    if (!this.drive && (this.input.shootPressed || (this.input.fireHeld && this.player.fireT <= 0))) {
       if (this.player.fireT > 0) return;
-      this.player.fireT = 0.28;
-      this.camPunch = 0.1;
+      this.player.fireT = 0.24;
+      this.camPunch = 0.18;
       if (this.input.showTouch) this.nudgeAim();
       this.webShot();
     }
@@ -1069,10 +1072,15 @@ export class ViceGame {
   }
 
   private webShot() {
-    const origin = new Vector3(this.player.x, this.player.y + 1.35, this.player.z);
+    this.applyGunPose();
+    const muzzle = findNamed(this.playerMesh, "muzzle");
+    const origin = muzzle
+      ? muzzle.getAbsolutePosition().clone()
+      : new Vector3(this.player.x + Math.sin(this.player.yaw) * 0.45, this.player.y + 1.28, this.player.z + Math.cos(this.player.yaw) * 0.45);
     const dir = lookDir(this.camYaw, this.camPitch * 0.45);
     dir.y = Math.max(-0.08, dir.y);
     dir.normalize();
+    sharedSfx.gunshot();
     sharedSfx.web();
     let hitT = GUN_RANGE;
     let hitPed: Ped | null = null;
@@ -1096,11 +1104,48 @@ export class ViceGame {
       if (t > 0.2 && t < hitT) { hitT = t; hitPed = null; hitCop = c; }
     }
     const end = origin.add(dir.scale(hitT));
-    this.spawnTracer(origin, end, true);
+    this.spawnShotVfx(origin, end, dir);
     this.spawnSpark(end);
     if (hitPed) this.webTarget(hitPed, false);
     if (hitCop) this.webTarget(hitCop, true);
-    if (hitPed || hitCop) this.notifyCrime(this.player.x, this.player.z, "melee");
+    if (hitPed || hitCop) this.notifyCrime(this.player.x, this.player.z, "gun");
+  }
+
+  private applyGunPose() {
+    if (this.drive) return;
+    const holster = (this.mode === "swing" || this.mode === "zip" || this.mode === "crawl")
+      && this.player.fireT <= 0
+      && !this.input.fireHeld;
+    setGunHolstered(this.playerMesh, holster);
+    if (!holster) tickGunPose(this.playerMesh, this.player.fireT, this.input.fireHeld);
+    this.playerMesh.computeWorldMatrix(true);
+  }
+
+  private spawnShotVfx(origin: Vector3, hit: Vector3, dir: Vector3) {
+    this.spawnFlash(origin);
+    this.spawnTracer(origin, hit, true);
+    const bolt = MeshBuilder.CreateCylinder("bolt", { height: 1, diameter: 0.055, tessellation: 6 }, this.scene);
+    bolt.material = mat(this.scene, CHAR[this.player.character].color, 1.1, 0);
+    const tip = origin.add(dir.scale(0.85));
+    bolt.position.copyFrom(origin.add(tip).scale(0.5));
+    bolt.scaling.y = 1.7;
+    const axis = Vector3.Cross(Vector3.Up(), dir);
+    if (axis.length() > 0.0001) {
+      bolt.rotationQuaternion = Quaternion.RotationAxis(axis.normalize(), Math.acos(clamp(Vector3.Dot(Vector3.Up(), dir), -1, 1)));
+    }
+    const casing = MeshBuilder.CreateCylinder("case", { height: 0.055, diameter: 0.016, tessellation: 6 }, this.scene);
+    casing.material = mat(this.scene, "#c9a24a", 0.35);
+    casing.position.copyFrom(origin.add(new Vector3(0.1, 0.05, 0.02)));
+    casing.rotation.z = 1.15;
+    const glow = new PointLight("mflash", origin.clone(), this.scene);
+    glow.diffuse = new Color3(1, 0.86, 0.45);
+    glow.intensity = 4.4;
+    glow.range = 8;
+    window.setTimeout(() => {
+      if (!bolt.isDisposed()) bolt.dispose();
+      if (!casing.isDisposed()) casing.dispose();
+      glow.dispose();
+    }, 95);
   }
 
   private webTarget(t: Ped | Cop, cop: boolean) {
@@ -1199,23 +1244,32 @@ export class ViceGame {
   }
 
   private spawnFlash(p: Vector3) {
-    const b = MeshBuilder.CreateBox("mz", { width: 0.1, height: 0.08, depth: 0.2 }, this.scene);
+    const b = MeshBuilder.CreateSphere("mz", { diameter: 0.22, segments: 6 }, this.scene);
     b.position.copyFrom(p);
-    b.material = mat(this.scene, "#ffe6a0", 1);
-    window.setTimeout(() => { if (!b.isDisposed()) b.dispose(); }, 55);
+    b.material = mat(this.scene, "#ffe6a0", 1.2, 0);
+    const core = MeshBuilder.CreateBox("mzc", { width: 0.08, height: 0.08, depth: 0.28 }, this.scene);
+    core.position.copyFrom(p);
+    core.material = mat(this.scene, "#fff4c8", 1.4, 0);
+    window.setTimeout(() => {
+      if (!b.isDisposed()) b.dispose();
+      if (!core.isDisposed()) core.dispose();
+    }, 70);
   }
 
   private spawnSpark(p: Vector3) {
-    const s = MeshBuilder.CreateSphere("sp", { diameter: 0.14, segments: 4 }, this.scene);
-    s.position.copyFrom(p);
-    s.material = mat(this.scene, "#ffc83d", 1);
-    window.setTimeout(() => { if (!s.isDisposed()) s.dispose(); }, 80);
+    for (let i = 0; i < 6; i += 1) {
+      const s = MeshBuilder.CreateBox("sp", { size: 0.055 }, this.scene);
+      s.position.copyFrom(p.add(new Vector3((Math.random() - 0.5) * 0.4, Math.random() * 0.28, (Math.random() - 0.5) * 0.4)));
+      s.material = mat(this.scene, i % 2 ? "#ffe08a" : CHAR[this.player.character].color, 1.1, 0);
+      window.setTimeout(() => { if (!s.isDisposed()) s.dispose(); }, 70 + i * 14);
+    }
+    sharedSfx.impact();
   }
 
   private spawnTracer(a: Vector3, b: Vector3, web = false) {
     const line = MeshBuilder.CreateLines("tr", { points: [a, b] }, this.scene);
     line.color = web ? Color3.FromHexString(CHAR[this.player.character].color) : new Color3(1, 0.85, 0.35);
-    this.tracers.push({ mesh: line, life: web ? 0.16 : TRACER_LIFE });
+    this.tracers.push({ mesh: line, life: web ? 0.2 : TRACER_LIFE });
   }
 
   private updateTracers(dt: number) {
@@ -1626,8 +1680,9 @@ export class ViceGame {
     else if (flying) tickSwingPose(this.playerMesh, this.time, this.mode === "swing" || this.mode === "zip");
     else {
       const moving = Math.hypot(this.player.vx, this.player.vz) > 0.45;
-      if (this.interior !== "jail") tickWalk(this.playerMesh, this.time, moving);
+      if (this.interior !== "jail") tickWalk(this.playerMesh, this.time, moving, true);
     }
+    if (!this.drive) this.applyGunPose();
     if (this.aim && this.interior === "street") {
       this.aimOrb.setEnabled(true);
       this.aimOrb.position.set(this.aim.x, this.aim.y, this.aim.z);

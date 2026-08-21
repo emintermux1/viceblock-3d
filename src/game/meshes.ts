@@ -1,5 +1,5 @@
 import { Mesh, MeshBuilder, Quaternion, Scene, Vector3 } from "@babylonjs/core";
-import { facadeMat, flareTex, makeDecal, makeSign, mat, uniqueMat, webSuitMat } from "./art";
+import { facadeMat, flareTex, makeDecal, makeSign, mat, metalMat, uniqueMat, webSuitMat } from "./art";
 import { clamp } from "./constants";
 import type { CharacterId } from "./types";
 
@@ -628,7 +628,6 @@ function assembleWebHero(
   const headY = 1.68 * sy;
   const suit = webSuitMat(scene, id, spec.base, spec.line);
   const dark = mat(scene, spec.base, 0.04);
-  const glow = mat(scene, spec.line, 0.85);
 
   const pelvis = MeshBuilder.CreateBox("pelvis", { width: tw * 0.92, height: 0.22 * sy, depth: td }, scene);
   pelvis.position.y = pelvisY;
@@ -654,22 +653,30 @@ function assembleWebHero(
   box(scene, root, "visor", 0.3 * spec.hood, 0.075, 0.09, 0, headY + 0.01, 0.16 * spec.hood, spec.lens, 0.95);
   box(scene, root, "lenscap", 0.32 * spec.hood, 0.03, 0.04, 0, headY + 0.07, 0.15 * spec.hood, spec.base, 0.08);
 
-  box(scene, root, "shootL", 0.1, 0.07, 0.12, -tw * 0.55, torsoY + 0.02, 0.1, "#0a0a0c", 0.15);
-  box(scene, root, "shootR", 0.1, 0.07, 0.12, tw * 0.55, torsoY + 0.02, 0.1, "#0a0a0c", 0.15);
-
   const armH = 0.54 * sy;
   const legH = 0.74 * sy;
   const larm = limb(scene, root, "larm", -tw * 0.5 - 0.08, torsoY + th * 0.35, 0.135, armH, spec.base);
   const rarm = limb(scene, root, "rarm", tw * 0.5 + 0.08, torsoY + th * 0.35, 0.135, armH, spec.base);
   for (const a of larm.getChildMeshes()) a.material = suit;
   for (const a of rarm.getChildMeshes()) a.material = suit;
+  box(scene, larm, "shootL", 0.1, 0.07, 0.12, 0, -armH + 0.06, 0.07, "#0a0a0c", 0.15);
+  box(scene, rarm, "shootR", 0.1, 0.07, 0.12, 0, -armH + 0.06, 0.07, "#0a0a0c", 0.15);
+  const fist = MeshBuilder.CreateSphere("fist", { diameter: 0.11, segments: 6 }, scene);
+  fist.position.set(0.03, -armH + 0.02, 0.03);
+  fist.scaling.set(1.05, 0.72, 1.15);
+  fist.material = suit;
+  fist.parent = rarm;
+  const gun = makeHandgun(scene, spec.line);
+  gun.parent = rarm;
+  gun.position.set(0.055, -armH + 0.02, 0.07);
+  gun.rotation.set(Math.PI * 0.5, 0.1, 0.18);
+  gun.scaling.setAll(1.55);
   const ll = limb(scene, root, "lleg", -0.14 * sx, hipY, 0.175, legH, spec.base);
   const rl = limb(scene, root, "rleg", 0.14 * sx, hipY, 0.175, legH, spec.base);
   for (const a of ll.getChildMeshes()) a.material = suit;
   for (const a of rl.getChildMeshes()) a.material = suit;
   box(scene, ll, "shoe", 0.18, 0.1, 0.3, 0, -legH - 0.02, 0.05, spec.base, 0.04);
   box(scene, rl, "shoe", 0.18, 0.1, 0.3, 0, -legH - 0.02, 0.05, spec.base, 0.04);
-  void glow;
   return root;
 }
 
@@ -697,6 +704,93 @@ export function makeCop(scene: Scene): Mesh {
     shoes: "#111114", hair: "#1a2438", hairStyle: "peak", sx: 1.04, sy: 1.02, neck: 0.15,
     vest: "#1a3a88", badge: true,
   });
+}
+
+export function makeHandgun(scene: Scene, accent: string): Mesh {
+  const root = new Mesh("gun", scene);
+  const steel = metalMat(scene, "#2c3036", 0.62);
+  const dark = metalMat(scene, "#121416", 0.28);
+  const slide = metalMat(scene, "#5a6068", 0.78);
+  const grip = MeshBuilder.CreateBox("grip", { width: 0.062, height: 0.16, depth: 0.09 }, scene);
+  grip.position.set(0, -0.07, -0.01);
+  grip.rotation.x = 0.28;
+  grip.material = dark;
+  grip.parent = root;
+  const mag = MeshBuilder.CreateBox("mag", { width: 0.048, height: 0.18, depth: 0.062 }, scene);
+  mag.position.set(0, -0.15, 0.02);
+  mag.material = steel;
+  mag.parent = root;
+  const rec = MeshBuilder.CreateBox("rec", { width: 0.08, height: 0.068, depth: 0.26 }, scene);
+  rec.position.set(0, 0.02, 0.06);
+  rec.material = steel;
+  rec.parent = root;
+  const sl = MeshBuilder.CreateBox("slide", { width: 0.07, height: 0.042, depth: 0.28 }, scene);
+  sl.position.set(0, 0.056, 0.07);
+  sl.material = slide;
+  sl.parent = root;
+  const barrel = MeshBuilder.CreateCylinder("bar", { height: 0.2, diameter: 0.03, tessellation: 8 }, scene);
+  barrel.rotation.x = Math.PI / 2;
+  barrel.position.set(0, 0.028, 0.24);
+  barrel.material = dark;
+  barrel.parent = root;
+  const guard = MeshBuilder.CreateTorus("tg", { diameter: 0.078, thickness: 0.012, tessellation: 8 }, scene);
+  guard.position.set(0, -0.012, 0.03);
+  guard.rotation.z = Math.PI / 2;
+  guard.material = steel;
+  guard.parent = root;
+  const sight = MeshBuilder.CreateBox("sight", { width: 0.014, height: 0.032, depth: 0.02 }, scene);
+  sight.position.set(0, 0.086, 0.18);
+  sight.material = dark;
+  sight.parent = root;
+  const rear = MeshBuilder.CreateBox("rsight", { width: 0.028, height: 0.02, depth: 0.016 }, scene);
+  rear.position.set(0, 0.082, -0.04);
+  rear.material = dark;
+  rear.parent = root;
+  const stock = MeshBuilder.CreateBox("stock", { width: 0.045, height: 0.05, depth: 0.09 }, scene);
+  stock.position.set(0, 0.01, -0.1);
+  stock.material = dark;
+  stock.parent = root;
+  const rail = MeshBuilder.CreateBox("rail", { width: 0.022, height: 0.012, depth: 0.12 }, scene);
+  rail.position.set(0, 0.08, 0.04);
+  rail.material = mat(scene, accent, 0.4);
+  rail.parent = root;
+  const muzzle = MeshBuilder.CreateCylinder("muzzle", { height: 0.09, diameterTop: 0.018, diameterBottom: 0.13, tessellation: 8 }, scene);
+  muzzle.rotation.x = Math.PI / 2;
+  muzzle.position.set(0, 0.028, 0.36);
+  muzzle.material = mat(scene, "#ffe6a0", 1.4, 0);
+  muzzle.setEnabled(false);
+  muzzle.parent = root;
+  return root;
+}
+
+export function findNamed(root: Mesh, name: string): Mesh | null {
+  if (root.name === name) return root;
+  for (const ch of root.getChildMeshes()) {
+    if (ch.name === name) return ch as Mesh;
+  }
+  return null;
+}
+
+export function setGunHolstered(mesh: Mesh, holster: boolean) {
+  const gun = findNamed(mesh, "gun");
+  if (gun) gun.setEnabled(!holster);
+}
+
+export function tickGunPose(mesh: Mesh, fireT: number, aiming: boolean) {
+  const rarm = findNamed(mesh, "rarm");
+  const larm = findNamed(mesh, "larm");
+  const gun = findNamed(mesh, "gun");
+  const muzzle = findNamed(mesh, "muzzle");
+  const sl = findNamed(mesh, "slide");
+  const kick = clamp(fireT / 0.22, 0, 1);
+  if (rarm) {
+    rarm.rotation.x = aiming || kick > 0 ? -1.58 - kick * 0.42 : rarm.rotation.x;
+    rarm.rotation.z = (aiming || kick > 0) ? 0.12 : 0;
+  }
+  if (larm && (aiming || kick > 0)) larm.rotation.x = -1.18;
+  if (gun) gun.rotation.x = Math.PI * 0.5 - kick * 0.28;
+  if (sl) sl.position.z = 0.07 - kick * 0.055;
+  if (muzzle) muzzle.setEnabled(kick > 0.45);
 }
 
 export function tickCrawlPose(mesh: Mesh, t: number) {
@@ -746,7 +840,7 @@ export function placeSilk(mesh: Mesh, ax: number, ay: number, az: number, bx: nu
   }
 }
 
-export function tickWalk(mesh: Mesh, t: number, moving: boolean) {
+export function tickWalk(mesh: Mesh, t: number, moving: boolean, readyCarry = false) {
   const amp = moving ? 0.48 : 0;
   const s = Math.sin(t * 9.4) * amp;
   const bob = moving ? Math.abs(Math.sin(t * 9.4)) * 0.04 : 0;
@@ -754,8 +848,11 @@ export function tickWalk(mesh: Mesh, t: number, moving: boolean) {
   for (const ch of mesh.getChildMeshes(false)) {
     if (ch.name === "lleg") ch.rotation.x = s;
     else if (ch.name === "rleg") ch.rotation.x = -s;
-    else if (ch.name === "larm") ch.rotation.x = -s * 0.8;
-    else if (ch.name === "rarm") ch.rotation.x = s * 0.8;
+    else if (ch.name === "larm") ch.rotation.x = readyCarry ? -0.35 - s * 0.25 : -s * 0.7;
+    else if (ch.name === "rarm") {
+      ch.rotation.x = readyCarry ? -0.52 + s * 0.16 : s * 0.7;
+      ch.rotation.z = readyCarry ? 0.06 : 0;
+    }
   }
 }
 

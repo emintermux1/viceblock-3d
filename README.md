@@ -13,7 +13,9 @@ This is an original dusk-vice web-slinger, not a Marvel / Sony title. The hero i
 - Street lamps, cables, crane, and building ledges as attach points
 - Short guest loop: first line → dock crane → stun three → lose heat high → free roam
 - Cars work again: near a car, F / BİN to get in and drive. BİN is a prompt, not a permanent chrome letter
-- Combat is web-stun, yank, melee, air takedown. Heat is local stars; swinging high drops it
+- Combat is a handheld compact SMG in the right hand: ATEŞ / click / Control plays muzzle flash, recoil, tracer, impact sparks, and a gunshot. Wrist shooters stay as slinger flavor. The gun holsters while swinging, zipping, climbing, or driving
+- Combat still web-stuns, yanks, and melee / air-takedown. Heat is local stars; swinging high drops it
+- Dusk South Docks lighting with warm sun, cool rim, bounce, wet asphalt, fabric lattice suits, and metal guns
 - Desktop: mouse look without pointer lock. Phone: left stick, right look, SALIN / ZIP / ATEŞ, plus TIRMAN and BİN when they apply
 - Title → character select → South Docks
 - Radio + web / whoosh / impact if `public/audio` files are present (generated MP3s)
