@@ -5,6 +5,7 @@ import {
 import { ASSIST, aimAngles, angError, lookFriction, magnetBlend, scoreAssist, type AssistHit } from "./aim";
 import { gestureUnlock, radio, sharedSfx } from "./audio";
 import { buildCity, tickCityArt, type CityData } from "./city";
+import { blockedAt, landFloor, resolveCapsule, slideMove, unstickCircle } from "./collide";
 import {
   ARREST_R, BAIL, CALL_T, CAR_FRICTION, CAR_HP, CAR_REV, CAR_SPEC, CHAR, COP_DMG,
   COP_FOOT, COP_SHOT_CD, CRANE_GOAL, FENCE, FIRE_CD, GRAVITY, GUN_DMG, GUN_RANGE, INT, JAIL_WAIT,
@@ -19,7 +20,7 @@ import {
   setGunHolstered, tickClimbPose, tickGunPose, tickSwingPose, tickWalk,
 } from "./meshes";
 import {
-  nearestWall, pickAnchor, standY, stepAir, stepSwing, stepZip, unstickPlayer, type Anchor, type SwingRope,
+  nearestWall, pickAnchor, standY, stepAir, stepSwing, stepZip, type Anchor, type SwingRope,
 } from "./swing";
 import type { AABB, CharacterId, CopState, HudState, InteriorId, MissionId, MoveMode, PedState } from "./types";
 import { emptyHud, pointInAABB } from "./types";
@@ -145,6 +146,7 @@ export class ViceGame {
     this.camera.inputs.clear();
     this.flare = flareTex(this.scene);
     this.city = buildCity(this.scene);
+    resolveCapsule(this.player, this.city.colliders);
     this.playerMesh = makeHero(this.scene, character);
     this.playerMesh.position.set(this.player.x, 0, this.player.z);
     this.silk = makeSilk(this.scene, CHAR[character].color);
@@ -234,6 +236,7 @@ export class ViceGame {
         occupied: false, special: s.special, smoke: null, stolen: false,
         flow: false, flowAxis: "z", flowDir: 1,
       });
+      unstickCircle(this.cars[this.cars.length - 1], this.city.colliders, 1.2);
     }
   }
 
@@ -258,6 +261,7 @@ export class ViceGame {
         occupied: false, special: "", smoke: null, stolen: false,
         flow: true, flowAxis: s.axis, flowDir: s.dir,
       });
+      unstickCircle(this.cars[this.cars.length - 1], this.city.colliders, 1.2);
     }
   }
 
@@ -346,6 +350,7 @@ export class ViceGame {
       if (this.input.enterPressed && this.enterLock <= 0) this.tryEnterExit();
       this.tickJail(dt);
       this.walkFree(dt, 0.7);
+      this.finishMove();
       this.mode = "ground";
     } else {
       this.locomote(dt);
@@ -384,6 +389,7 @@ export class ViceGame {
 
     if (this.interior !== "street") {
       this.walkFree(dt, 1);
+      this.finishMove();
       this.mode = "ground";
       this.rope = null;
       this.zipTo = null;
@@ -410,10 +416,13 @@ export class ViceGame {
         const done = stepZip(p, this.zipTo, dt);
         this.drawSilk(this.zipTo.x, this.zipTo.y, this.zipTo.z);
         this.clampWorld();
-        this.collideBuildings();
-        const stuck = unstickPlayer(p, this.city.colliders);
+        const stuck = this.finishMove();
         if (stuck === "roof") this.landOn(standY(p.x, p.z, this.city.colliders));
-        if (done) {
+        else if (stuck === "out") {
+          this.zipTo = null;
+          this.rope = null;
+          this.mode = "air";
+        } else if (done) {
           this.zipTo = null;
           this.rope = null;
           this.mode = "air";
@@ -455,8 +464,7 @@ export class ViceGame {
         stepSwing(p, this.rope, ins.moveX, ins.moveY, this.camYaw, dt);
         this.drawSilk(this.rope.ax, this.rope.ay, this.rope.az);
         this.clampWorld();
-        this.collideBuildings();
-        unstickPlayer(p, this.city.colliders);
+        this.finishMove();
         this.maybeLand();
         this.maybeCrawl();
         this.faceVelocity();
@@ -466,6 +474,7 @@ export class ViceGame {
 
     if (this.mode === "ground") {
       this.walkRooftops(dt);
+      this.finishMove();
       if (this.tryStartClimb()) return;
       if (ins.jumpPressed) {
         p.vy = JUMP_VEL;
@@ -483,8 +492,7 @@ export class ViceGame {
     stepAir(p, ins.moveX, ins.moveY, this.camYaw, dt);
     this.clampWorld();
     if (wantSwing && this.aim) this.attachSwing();
-    this.collideBuildings();
-    const stuck = unstickPlayer(p, this.city.colliders);
+    const stuck = this.finishMove();
     if (stuck === "roof") this.landOn(standY(p.x, p.z, this.city.colliders));
     this.maybeLand();
     this.maybeCrawl();
@@ -545,8 +553,6 @@ export class ViceGame {
     p.vz = vz;
     p.vy = 0;
     this.bumpedWall = false;
-    const stuck = unstickPlayer(p, this.city.colliders);
-    if (stuck === "roof") p.y = standY(p.x, p.z, this.city.colliders);
     const floor = standY(p.x, p.z, this.city.colliders);
     const onRoof = floor > 0.4 && p.y >= floor - 0.9;
     const nx = p.x + vx * dt;
@@ -554,9 +560,13 @@ export class ViceGame {
     if (onRoof) {
       const next = standY(nx, nz, this.city.colliders);
       if (next > 0.35 && floor - next < 2.2) {
-        p.x = clamp(nx, -94, 94);
-        p.z = clamp(nz, -80, 96);
-        p.y = next;
+        if (!this.walkable(nx, nz) && next < 0.4) {
+          /* stay */
+        } else {
+          p.x = clamp(nx, -94, 94);
+          p.z = clamp(nz, -80, 96);
+          p.y = next;
+        }
         p.grounded = true;
       } else {
         p.x = nx;
@@ -566,11 +576,12 @@ export class ViceGame {
         this.mode = "air";
       }
     } else {
-      const hitX = this.blocked(nx, p.z, PLAYER_R);
-      const hitZ = this.blocked(p.x, nz, PLAYER_R);
-      this.bumpedWall = (hitX || hitZ) && Math.hypot(this.input.moveX, this.input.moveY) > 0.15;
-      if (!hitX && this.walkable(nx, p.z)) p.x = nx;
-      if (!hitZ && this.walkable(p.x, nz)) p.z = nz;
+      const ox = p.x;
+      const oz = p.z;
+      const hit = slideMove(p, vx * dt, vz * dt, this.worldCols(), PLAYER_R);
+      this.bumpedWall = hit && Math.hypot(this.input.moveX, this.input.moveY) > 0.15;
+      if (!this.walkable(p.x, oz)) p.x = ox;
+      if (!this.walkable(p.x, p.z)) p.z = oz;
       p.y = 0;
       p.grounded = true;
       if (p.z > this.city.waterZ && !pointInAABB(p.x, p.z, this.city.pier, 0.2)) {
@@ -587,26 +598,22 @@ export class ViceGame {
     }
   }
 
-  private collideBuildings() {
-    const p = this.player;
-    for (const b of this.city.colliders) {
-      if (p.y >= b.maxY - 0.18) continue;
-      if (p.x < b.minX - 0.48 || p.x > b.maxX + 0.48 || p.z < b.minZ - 0.48 || p.z > b.maxZ + 0.48) continue;
-      if (p.y >= b.maxY - 1.35 && p.x > b.minX && p.x < b.maxX && p.z > b.minZ && p.z < b.maxZ) {
-        p.y = b.maxY;
-        if (p.vy < 0) p.vy = 0;
-        continue;
-      }
-      const left = p.x - b.minX;
-      const right = b.maxX - p.x;
-      const back = p.z - b.minZ;
-      const fwd = b.maxZ - p.z;
-      const m = Math.min(left, right, back, fwd);
-      if (m === left) { p.x = b.minX - 0.5; p.vx *= -0.28; }
-      else if (m === right) { p.x = b.maxX + 0.5; p.vx *= -0.28; }
-      else if (m === back) { p.z = b.minZ - 0.5; p.vz *= -0.28; }
-      else { p.z = b.maxZ + 0.5; p.vz *= -0.28; }
+  private worldCols() {
+    return this.interior === "street" ? this.city.colliders : this.city.interiors[this.interior].colliders;
+  }
+
+  private finishMove() {
+    const cols = this.worldCols();
+    const hit = resolveCapsule(this.player, cols, PLAYER_R);
+    if (this.rope) {
+      const d = Math.hypot(
+        this.player.x - this.rope.ax,
+        this.player.y - this.rope.ay,
+        this.player.z - this.rope.az,
+      );
+      if (hit === "out") this.rope.length = Math.max(4, Math.min(this.rope.length, d));
     }
+    return hit;
   }
 
   private landOn(floor: number) {
@@ -623,7 +630,7 @@ export class ViceGame {
 
   private maybeLand() {
     const p = this.player;
-    const floor = standY(p.x, p.z, this.city.colliders);
+    const floor = landFloor(p.x, p.y, p.z, this.city.colliders, 0.1);
     if (p.y <= floor + 0.38 && p.vy <= 8) {
       if (this.mode === "air" || this.mode === "swing" || this.mode === "zip") {
         const drop = Math.max(0, -p.vy);
@@ -648,6 +655,7 @@ export class ViceGame {
     const into = -mx * w.nx - mz * w.nz;
     if (this.input.climbHeld || this.bumpedWall || into > 0.12) {
       this.stickWall(w);
+      this.finishMove();
       this.bumpedWall = false;
       return true;
     }
@@ -661,6 +669,7 @@ export class ViceGame {
     if (!w) return;
     if (!this.input.climbHeld && p.y < 0.55) return;
     this.stickWall(w);
+    this.finishMove();
   }
 
   private stickWall(w: { x: number; y: number; z: number; nx: number; nz: number; maxY: number }) {
@@ -670,8 +679,15 @@ export class ViceGame {
     p.vx = 0;
     p.vz = 0;
     p.vy = 0;
-    p.x = w.x + w.nx * 0.42;
-    p.z = w.z + w.nz * 0.42;
+    p.x = w.x + w.nx * (PLAYER_R + 0.1);
+    p.z = w.z + w.nz * (PLAYER_R + 0.1);
+    resolveCapsule(p, this.city.colliders, PLAYER_R);
+    const again = nearestWall(p.x, Math.max(0.2, p.y), p.z, this.city.colliders, 1.9);
+    if (again) {
+      p.x = again.x + again.nx * (PLAYER_R + 0.1);
+      p.z = again.z + again.nz * (PLAYER_R + 0.1);
+      this.crawlN = { nx: again.nx, nz: again.nz, maxY: again.maxY };
+    }
     this.rope = null;
     this.zipTo = null;
     this.silk.setEnabled(false);
@@ -705,15 +721,17 @@ export class ViceGame {
     p.y += climb * dt;
     p.y = Math.max(0.35, p.y);
     const pinned = nearestWall(p.x, p.y, p.z, this.city.colliders, 1.85) ?? w;
-    p.x = pinned.x + pinned.nx * 0.42;
-    p.z = pinned.z + pinned.nz * 0.42;
+    p.x = pinned.x + pinned.nx * (PLAYER_R + 0.1);
+    p.z = pinned.z + pinned.nz * (PLAYER_R + 0.1);
     this.crawlN = { nx: pinned.nx, nz: pinned.nz, maxY: pinned.maxY };
     p.yaw = Math.atan2(-pinned.nx, -pinned.nz);
+    const stuck = this.finishMove();
     this.playerMesh.setEnabled(true);
-    if (p.y >= pinned.maxY - 0.42) {
-      p.x = pinned.x - pinned.nx * 1.05;
-      p.z = pinned.z - pinned.nz * 1.05;
+    if (stuck === "roof" || p.y >= pinned.maxY - 0.85) {
+      p.x = pinned.x - pinned.nx * 1.15;
+      p.z = pinned.z - pinned.nz * 1.15;
       this.landOn(pinned.maxY);
+      resolveCapsule(p, this.city.colliders, PLAYER_R);
       return;
     }
     if (ins.jumpPressed || (ins.swingHeld && !ins.climbHeld)) {
@@ -757,10 +775,11 @@ export class ViceGame {
       this.player.grounded = true;
     }
     this.wasGrounded = this.player.grounded;
-    const nx = this.player.x + vx * dt;
-    const nz = this.player.z + vz * dt;
-    if (!this.blocked(nx, this.player.z, PLAYER_R) && this.walkable(nx, this.player.z)) this.player.x = nx;
-    if (!this.blocked(this.player.x, nz, PLAYER_R) && this.walkable(this.player.x, nz)) this.player.z = nz;
+    const ox = this.player.x;
+    const oz = this.player.z;
+    slideMove(this.player, vx * dt, vz * dt, this.worldCols(), PLAYER_R);
+    if (!this.walkable(this.player.x, oz)) this.player.x = ox;
+    if (!this.walkable(this.player.x, this.player.z)) this.player.z = oz;
     this.playerMesh.setEnabled(true);
     const moving = Math.hypot(vx, vz) > 0.4 && this.player.grounded;
     this.stepT -= dt;
@@ -810,14 +829,14 @@ export class ViceGame {
     const nz = car.z + fz * dt;
     const hitX = this.blocked(nx, car.z, 1.2) || !this.walkable(nx, car.z);
     const hitZ = this.blocked(car.x, nz, 1.2) || !this.walkable(car.x, nz);
+    if (!hitX) car.x = nx;
+    if (!hitZ) car.z = nz;
     if (hitX || hitZ) {
       const impact = Math.abs(car.speed);
       if (impact > 6) this.hurtCar(car, (impact - 5) * 5.5 * spec.mass, impact > 13);
-      car.speed *= -0.25;
-    } else {
-      car.x = nx;
-      car.z = nz;
+      car.speed *= hitX && hitZ ? -0.25 : 0.7;
     }
+    if (this.interior === "street") unstickCircle(car, this.city.colliders, 1.2);
     this.player.x = car.x;
     this.player.z = car.z;
     this.player.y = 0;
@@ -1025,24 +1044,32 @@ export class ViceGame {
     const c = this.drive;
     c.occupied = false;
     c.speed = 0;
-    this.player.x = c.x + Math.cos(c.yaw) * 2.1;
-    this.player.z = c.z - Math.sin(c.yaw) * 2.1;
-    if (this.blocked(this.player.x, this.player.z, PLAYER_R)) {
-      this.player.x = c.x;
-      this.player.z = c.z + 2.2;
+    const offs: [number, number][] = [
+      [Math.cos(c.yaw) * 2.1, -Math.sin(c.yaw) * 2.1],
+      [-Math.cos(c.yaw) * 2.1, Math.sin(c.yaw) * 2.1],
+      [Math.sin(c.yaw) * 2.2, Math.cos(c.yaw) * 2.2],
+      [-Math.sin(c.yaw) * 2.2, -Math.cos(c.yaw) * 2.2],
+    ];
+    this.player.x = c.x;
+    this.player.z = c.z;
+    for (const [dx, dz] of offs) {
+      const x = c.x + dx;
+      const z = c.z + dz;
+      if (!this.blocked(x, z, PLAYER_R) && this.walkable(x, z)) {
+        this.player.x = x;
+        this.player.z = z;
+        break;
+      }
     }
+    resolveCapsule(this.player, this.worldCols(), PLAYER_R);
     this.drive = null;
     this.enterLock = 0.35;
     this.camDist = this.interior === "street" ? 8.6 : 5.2;
     this.playerMesh.setEnabled(true);
   }
 
-  private blocked(x: number, z: number, r: number): boolean {
-    const cols = this.interior === "street" ? this.city.colliders : this.city.interiors[this.interior].colliders;
-    for (const b of cols) {
-      if (x + r > b.minX && x - r < b.maxX && z + r > b.minZ && z - r < b.maxZ) return true;
-    }
-    return false;
+  private blocked(x: number, z: number, r: number, y = 0): boolean {
+    return blockedAt(x, y, z, r, this.worldCols());
   }
 
   private walkable(x: number, z: number): boolean {
@@ -1264,6 +1291,7 @@ export class ViceGame {
         this.player.vz += ((t.z - this.player.z) / inv) * 6;
         this.player.vy += 1.4;
       }
+      resolveCapsule(this.player, this.worldCols(), PLAYER_R);
     }
   }
 
@@ -1737,6 +1765,7 @@ export class ViceGame {
         if (c.flowDir < 0 && c.x < -78) c.x = 78;
         c.yaw = c.flowDir > 0 ? Math.PI / 2 : -Math.PI / 2;
       }
+      unstickCircle(c, this.city.colliders, 1.15);
     }
   }
 

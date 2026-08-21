@@ -8,7 +8,7 @@ This is an original dusk-vice web-slinger, not a Marvel / Sony title. The hero i
 
 ## Real
 - Pendulum swing is the toy: hold F / SALIN to attach, steer the arc, release and reattach, E / ZIP to a point, air steer
-- Rooftops are walkable. If you land on one you stand, WASD / stick walk, then leap or swing off. Embedded collisions push you out or snap you onto the roof
+- Rooftops are walkable. Capsule vs building volumes: slide along walls, pop out of overlaps along the shallowest face (or both at a corner), snap onto a roof only when you are already near the top. Signs, wires, AC, crates, and gulls are decoration, not solid
 - Wall climb: approach a facade and hold toward it or C / TIRMAN, climb up, vault onto the roof
 - Street lamps, cables, crane, and building ledges as attach points
 - Short guest loop: first line → dock crane → stun three → lose heat high → free roam

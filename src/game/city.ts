@@ -47,10 +47,10 @@ export type CityData = {
 
 export { tickCityArt };
 
-function boxAABB(x: number, z: number, w: number, d: number, h: number, yaw = 0): AABB {
+function boxAABB(x: number, z: number, w: number, d: number, h: number, yaw = 0, inset = 0.1): AABB {
   const swap = Math.abs(Math.sin(yaw)) > 0.7;
-  const hw = (swap ? d : w) / 2;
-  const hd = (swap ? w : d) / 2;
+  const hw = Math.max(0.35, (swap ? d : w) / 2 - inset);
+  const hd = Math.max(0.35, (swap ? w : d) / 2 - inset);
   return { minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd, minY: 0, maxY: h };
 }
 
@@ -640,7 +640,7 @@ function roomWalls(scene: Scene, cx: number, cz: number, w: number, d: number, h
   const north = MeshBuilder.CreateBox("iw", { width: w, height: h, depth: t }, scene);
   north.position.set(cx, h * 0.5, cz + d / 2);
   north.material = mat(scene, hex);
-  colliders.push(boxAABB(cx, cz + d / 2, w, t, h));
+  colliders.push(boxAABB(cx, cz + d / 2, w, t, h, 0, 0));
   const southGap = 2.4;
   const sw = (w - southGap) * 0.5;
   const sideZ = doorZ === "neg" ? cz - d / 2 : cz + d / 2;
@@ -651,8 +651,8 @@ function roomWalls(scene: Scene, cx: number, cz: number, w: number, d: number, h
     const sr = MeshBuilder.CreateBox("iw", { width: sw, height: h, depth: t }, scene);
     sr.position.set(cx + (southGap + sw) * 0.5, h * 0.5, sideZ);
     sr.material = mat(scene, hex);
-    colliders.push(boxAABB(cx - (southGap + sw) * 0.5, sideZ, sw, t, h));
-    colliders.push(boxAABB(cx + (southGap + sw) * 0.5, sideZ, sw, t, h));
+    colliders.push(boxAABB(cx - (southGap + sw) * 0.5, sideZ, sw, t, h, 0, 0));
+    colliders.push(boxAABB(cx + (southGap + sw) * 0.5, sideZ, sw, t, h, 0, 0));
   }
   const east = MeshBuilder.CreateBox("iw", { width: t, height: h, depth: d }, scene);
   east.position.set(cx + w / 2, h * 0.5, cz);
@@ -660,8 +660,8 @@ function roomWalls(scene: Scene, cx: number, cz: number, w: number, d: number, h
   const west = MeshBuilder.CreateBox("iw", { width: t, height: h, depth: d }, scene);
   west.position.set(cx - w / 2, h * 0.5, cz);
   west.material = mat(scene, hex);
-  colliders.push(boxAABB(cx + w / 2, cz, t, d, h));
-  colliders.push(boxAABB(cx - w / 2, cz, t, d, h));
+  colliders.push(boxAABB(cx + w / 2, cz, t, d, h, 0, 0));
+  colliders.push(boxAABB(cx - w / 2, cz, t, d, h, 0, 0));
   void doorZ;
   return colliders;
 }
@@ -678,12 +678,12 @@ function buildInteriors(scene: Scene): CityData["interiors"] {
   const counter = MeshBuilder.CreateBox("cnt", { width: 3.4, height: 1.1, depth: 0.8 }, scene);
   counter.position.set(INT.mart.ox, 0.55, INT.mart.oz + 3);
   counter.material = mat(scene, "#5a4030");
-  martC.push(boxAABB(INT.mart.ox, INT.mart.oz + 3, 3.4, 0.8, 1.1));
+  martC.push(boxAABB(INT.mart.ox, INT.mart.oz + 3, 3.4, 0.8, 1.1, 0, 0));
   for (let i = 0; i < 3; i++) {
     const aisle = MeshBuilder.CreateBox("ais", { width: 0.4, height: 1.65, depth: 4.2 }, scene);
     aisle.position.set(INT.mart.ox - 3 + i * 3, 0.82, INT.mart.oz - 0.4);
     aisle.material = mat(scene, "#2a3040");
-    martC.push(boxAABB(INT.mart.ox - 3 + i * 3, INT.mart.oz - 0.4, 0.4, 4.2, 1.65));
+    martC.push(boxAABB(INT.mart.ox - 3 + i * 3, INT.mart.oz - 0.4, 0.4, 4.2, 1.65, 0, 0));
     for (let k = 0; k < 4; k++) {
       const can = MeshBuilder.CreateBox("can", { width: 0.18, height: 0.2, depth: 0.18 }, scene);
       can.position.set(INT.mart.ox - 3 + i * 3, 1.75, INT.mart.oz - 1.6 + k * 1.0);
