@@ -25,6 +25,14 @@ export function circleHitsAABB(x: number, z: number, r: number, b: AABB): boolea
   return dx * dx + dz * dz < r * r;
 }
 
+export function centerInside(x: number, y: number, z: number, cols: AABB[]): boolean {
+  for (const b of cols) {
+    if (y >= b.maxY - 0.05) continue;
+    if (x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ) return true;
+  }
+  return false;
+}
+
 export function blockedAt(x: number, y: number, z: number, r: number, cols: AABB[], h = PLAYER_H): boolean {
   const top = y + h;
   for (const b of cols) {

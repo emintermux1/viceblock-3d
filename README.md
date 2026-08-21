@@ -9,7 +9,7 @@ This is an original dusk-vice web-slinger, not a Marvel / Sony title. The hero i
 ## Real
 - Pendulum swing is the toy: hold F / SALIN to attach, steer the arc, release and reattach, E / ZIP to a point, air steer
 - Rooftops are walkable. Capsule vs building volumes: slide along walls, pop out of overlaps along the shallowest face (or both at a corner), snap onto a roof only when you are already near the top. Signs, wires, AC, crates, and gulls are decoration, not solid
-- Wall climb: approach a facade and hold toward it or C / TIRMAN, climb up, vault onto the roof
+- Wall climb is press-only: C / TIRMAN (or the TIRMAN pad) starts a climb. Walking or sliding into a wall never starts one. Space / ZIPLA, C / TIRMAN again, move back, or look down drops you off and unsticks. Vault a roof after an explicit climb, then walk it
 - Street lamps, cables, crane, and building ledges as attach points
 - Short guest loop: first line → dock crane → stun three → lose heat high → free roam
 - Cars: near a car, tap F or tap the BİN prompt once to sit and drive. No hold, no hotwire charge. Tap F / BİN again to get out. Hold F / SALIN still slings when you are not in enter range. BİN is a prompt, not a permanent chrome letter
@@ -18,7 +18,7 @@ This is an original dusk-vice web-slinger, not a Marvel / Sony title. The hero i
 - Combat still web-stuns, yanks, and melee / air-takedown. Heat is local stars; swinging high drops it
 - Dusk South Docks lighting with warm sodium, teal water bounce, magenta neon, wet asphalt, fabric lattice suits, and metal guns
 - Authored street dressing: VICEBLOCK / Nova City / South Docks plates and neon, shop awnings, window AC, rooftop tanks, drooping wires, painted tags, traffic lights, steam, dust, birds, and flowing traffic. Pedestrians idle and walk. Landings settle the camera. Silk sags on the line.
-- SALT GLOW nightclub on the strip (between VICE and RICO'S, north of spawn). Tap F / GİR at the door. Stage, pole, bar, booths, DJ, pink wash, dancers and hostesses inside. Adult nightlife walkers on the sidewalk. Muffled bass near the door, louder inside.
+- SALT GLOW nightclub sits on the spawn-facing street at (-6, 22), dead ahead when you spawn looking northeast. Huge magenta roof + facade neon, street canopy, pink wash, bouncer, sidewalk dancers, and a SALT GLOW HUD ping until you enter once. Generous F / GİR on the south sidewalk. Stage, pole, bar, booths, DJ, and hostesses inside. Muffled bass near the door, louder inside.
 - Desktop: mouse look without pointer lock. Phone: left stick, right look, SALIN / ZIP / ATEŞ, plus TIRMAN and BİN when they apply
 - Title → character select → South Docks
 - Radio + web / whoosh / impact if `public/audio` files are present (generated MP3s)

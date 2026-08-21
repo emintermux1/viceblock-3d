@@ -5,9 +5,9 @@ import {
 import { ASSIST, aimAngles, angError, lookFriction, magnetBlend, scoreAssist, type AssistHit } from "./aim";
 import { clubBass, gestureUnlock, radio, sharedSfx } from "./audio";
 import { buildCity, tickCityArt, type CityData } from "./city";
-import { blockedAt, circleHitsAABB, landFloor, resolveCapsule, slideMove, unstickCircle } from "./collide";
+import { blockedAt, centerInside, circleHitsAABB, landFloor, resolveCapsule, slideMove, unstickCircle } from "./collide";
 import {
-  ARREST_R, BAIL, CALL_T, CAR_FRICTION, CAR_HP, CAR_REV, CAR_SPEC, CHAR, COP_DMG,
+  ARREST_R, BAIL, CALL_T, CAR_FRICTION, CAR_HP, CAR_REV, CAR_SPEC, CHAR, CLUB_SIZE, COP_DMG,
   COP_FOOT, COP_SHOT_CD, CRANE_GOAL, FENCE, FIRE_CD, GRAVITY, GUN_DMG, GUN_RANGE, INT, JAIL_WAIT,
   JUMP_VEL, LOC, MAG, MELEE_CD, MELEE_DMG, MELEE_RANGE, PD, PD_OUT, PLAYER_R,
   REGEN_DELAY, REGEN_RATE, RELOAD_T, REPAIR_COST, RESERVE, SAVE_KEY, SEARCH_R0,
@@ -60,7 +60,9 @@ export class ViceGame {
   private rope: SwingRope | null = null;
   private zipTo: Anchor | null = null;
   private crawlN: { nx: number; nz: number; maxY: number } | null = null;
-  private bumpedWall = false;
+  private climbLock = 0;
+  private clubEntered = false;
+  private clubPing!: Mesh;
   private silk!: Mesh;
   private aimOrb!: Mesh;
   private assistMark!: Mesh;
@@ -69,7 +71,7 @@ export class ViceGame {
   private aim: Anchor | null = null;
   private stuns = 0;
   private launched = false;
-  camYaw = 0.95;
+  camYaw = 0.9;
   camPitch = 0.22;
   camDist = 8.6;
   private camFov = 0.8;
@@ -159,6 +161,14 @@ export class ViceGame {
     this.assistMark.setEnabled(false);
     this.marker = MeshBuilder.CreateTorus("mk", { diameter: 3.2, thickness: 0.18, tessellation: 20 }, this.scene);
     this.marker.material = mat(this.scene, "#ffc83d", 0.8);
+    this.clubPing = MeshBuilder.CreateTorus("clubping", { diameter: 4.4, thickness: 0.16, tessellation: 22 }, this.scene);
+    this.clubPing.material = mat(this.scene, "#ff4da6", 0.95);
+    this.clubPing.rotation.x = Math.PI / 2;
+    const pingBeam = MeshBuilder.CreateCylinder("clubbeam", { height: 18, diameter: 0.18, tessellation: 8 }, this.scene);
+    pingBeam.material = mat(this.scene, "#ff4da6", 0.7);
+    pingBeam.parent = this.clubPing;
+    pingBeam.position.y = 0;
+    pingBeam.rotation.x = -Math.PI / 2;
     this.spawnCars();
     this.spawnFlowCars();
     this.spawnPeds();
@@ -307,6 +317,7 @@ export class ViceGame {
     guard.rotation.y = -0.4;
     const nightSpots = [
       { x: -20, z: 32 }, { x: -12, z: 34 }, { x: -8, z: 28 }, { x: 6, z: 33 }, { x: -22, z: 8 },
+      { x: LOC.club.x - 5.4, z: LOC.club.z - 8.6 }, { x: LOC.club.x + 4.8, z: LOC.club.z - 8.2 },
     ];
     for (let i = 0; i < nightSpots.length; i++) {
       const s = nightSpots[i];
@@ -320,12 +331,26 @@ export class ViceGame {
       });
     }
     const bounce = makeBouncer(this.scene);
-    bounce.position.set(LOC.club.x - 2.2, 0, LOC.club.z - 6.4);
+    bounce.position.set(LOC.club.x - 2.6, 0, LOC.club.z - 7.4);
     this.peds.push({
-      mesh: bounce, x: LOC.club.x - 2.2, z: LOC.club.z - 6.4, yaw: Math.PI, hp: 70,
-      state: "wander", tx: LOC.club.x - 2.2, tz: LOC.club.z - 6.4, downT: 0,
+      mesh: bounce, x: LOC.club.x - 2.6, z: LOC.club.z - 7.4, yaw: Math.PI, hp: 70,
+      state: "wander", tx: LOC.club.x - 2.6, tz: LOC.club.z - 7.4, downT: 0,
       color: "#222", role: "bouncer", callT: 0, waitT: 0,
     });
+    const sidewalkDance: [number, number][] = [
+      [LOC.club.x + 2.2, LOC.club.z - 7.8],
+      [LOC.club.x + 3.5, LOC.club.z - 7.1],
+    ];
+    for (let i = 0; i < sidewalkDance.length; i++) {
+      const [x, z] = sidewalkDance[i];
+      const mesh = makeDancer(this.scene, 30 + i);
+      mesh.position.set(x, 0.22, z);
+      this.peds.push({
+        mesh, x, z, yaw: Math.PI, hp: 40,
+        state: "wander", tx: x, tz: z, downT: 0,
+        color: "#ff4da6", role: "dancer", callT: 0, waitT: 0,
+      });
+    }
     const dancers: [number, number][] = [
       [INT.club.ox, INT.club.oz + 5.2],
       [INT.club.ox - 1.15, INT.club.oz + 4.7],
@@ -381,6 +406,7 @@ export class ViceGame {
     const inv = this.input.lookInvert ? -1 : 1;
     this.applyLookAssist(dt, look.x, look.y, touch, inv);
     this.enterLock = Math.max(0, this.enterLock - dt);
+    this.climbLock = Math.max(0, this.climbLock - dt);
     this.player.fireT = Math.max(0, this.player.fireT - dt);
     this.player.meleeT = Math.max(0, this.player.meleeT - dt);
     this.player.flash = Math.max(0, this.player.flash - dt);
@@ -604,7 +630,6 @@ export class ViceGame {
     p.vx = vx;
     p.vz = vz;
     p.vy = 0;
-    this.bumpedWall = false;
     const floor = standY(p.x, p.z, this.city.colliders);
     const onRoof = floor > 0.4 && p.y >= floor - 0.9;
     const nx = p.x + vx * dt;
@@ -630,8 +655,7 @@ export class ViceGame {
     } else {
       const ox = p.x;
       const oz = p.z;
-      const hit = slideMove(p, vx * dt, vz * dt, this.worldCols(), PLAYER_R);
-      this.bumpedWall = hit && Math.hypot(this.input.moveX, this.input.moveY) > 0.15;
+      slideMove(p, vx * dt, vz * dt, this.worldCols(), PLAYER_R);
       if (!this.walkable(p.x, oz)) p.x = ox;
       if (!this.walkable(p.x, p.z)) p.z = oz;
       p.y = 0;
@@ -696,53 +720,82 @@ export class ViceGame {
   }
 
   private tryStartClimb(): boolean {
+    if (this.climbLock > 0 || !this.input.climbPressed) return false;
     const p = this.player;
-    const reach = this.input.climbHeld || this.bumpedWall ? 2.8 : 1.85;
-    const w = nearestWall(p.x, Math.max(0.2, p.y + 0.35), p.z, this.city.colliders, reach);
+    const w = nearestWall(p.x, Math.max(0.2, p.y + 0.35), p.z, this.city.colliders, 2.2);
     if (!w) return false;
-    const fwd = lookDir(this.camYaw, 0);
-    const right = new Vector3(fwd.z, 0, -fwd.x);
-    const mx = fwd.x * -this.input.moveY + right.x * this.input.moveX;
-    const mz = fwd.z * -this.input.moveY + right.z * this.input.moveX;
-    const into = -mx * w.nx - mz * w.nz;
-    if (this.input.climbHeld || this.bumpedWall || into > 0.12) {
-      this.stickWall(w);
-      this.finishMove();
-      this.bumpedWall = false;
-      return true;
-    }
-    return false;
+    this.stickWall(w);
+    if (this.mode !== "crawl") return false;
+    this.finishMove();
+    return true;
   }
 
   private maybeCrawl() {
-    if (this.mode !== "air") return;
+    if (this.mode !== "air" || this.climbLock > 0 || !this.input.climbPressed) return;
     const p = this.player;
-    const w = nearestWall(p.x, p.y, p.z, this.city.colliders, this.input.climbHeld ? 1.9 : 1.2);
+    const w = nearestWall(p.x, p.y, p.z, this.city.colliders, 1.9);
     if (!w) return;
-    if (!this.input.climbHeld && p.y < 0.55) return;
     this.stickWall(w);
     this.finishMove();
   }
 
   private stickWall(w: { x: number; y: number; z: number; nx: number; nz: number; maxY: number }) {
     const p = this.player;
-    this.mode = "crawl";
     this.crawlN = { nx: w.nx, nz: w.nz, maxY: w.maxY };
     p.vx = 0;
     p.vz = 0;
     p.vy = 0;
-    p.x = w.x + w.nx * (PLAYER_R + 0.1);
-    p.z = w.z + w.nz * (PLAYER_R + 0.1);
+    p.x = w.x + w.nx * (PLAYER_R + 0.22);
+    p.z = w.z + w.nz * (PLAYER_R + 0.22);
     resolveCapsule(p, this.city.colliders, PLAYER_R);
-    const again = nearestWall(p.x, Math.max(0.2, p.y), p.z, this.city.colliders, 1.9);
-    if (again) {
-      p.x = again.x + again.nx * (PLAYER_R + 0.1);
-      p.z = again.z + again.nz * (PLAYER_R + 0.1);
-      this.crawlN = { nx: again.nx, nz: again.nz, maxY: again.maxY };
+    if (centerInside(p.x, p.y + 0.4, p.z, this.city.colliders)) {
+      this.dropClimb();
+      return;
     }
+    this.mode = "crawl";
     this.rope = null;
     this.zipTo = null;
     this.silk.setEnabled(false);
+  }
+
+  private dropClimb() {
+    const p = this.player;
+    const n = this.crawlN;
+    this.mode = "air";
+    this.climbLock = 0.28;
+    this.crawlN = null;
+    this.rope = null;
+    this.zipTo = null;
+    this.silk.setEnabled(false);
+    if (n) {
+      p.x += n.nx * 1.15;
+      p.z += n.nz * 1.15;
+      p.vx = n.nx * 5.4;
+      p.vz = n.nz * 5.4;
+    }
+    p.vy = Math.max(p.vy, 2.2);
+    resolveCapsule(p, this.worldCols(), PLAYER_R);
+    if (centerInside(p.x, p.y + 0.4, p.z, this.worldCols()) && n) {
+      p.x += n.nx * 1.5;
+      p.z += n.nz * 1.5;
+      resolveCapsule(p, this.worldCols(), PLAYER_R);
+    }
+    p.grounded = false;
+    sharedSfx.whoosh();
+  }
+
+  private wantDropClimb(
+    w: { nx: number; nz: number },
+    tx: number,
+    tz: number,
+  ): boolean {
+    const ins = this.input;
+    if (ins.jumpPressed) return true;
+    if (ins.climbPressed) return true;
+    if (ins.swingHeld && !ins.climbHeld) return true;
+    if (this.camPitch > 0.5) return true;
+    const into = -(tx * w.nx + tz * w.nz);
+    return into < -0.2;
   }
 
   private stepCrawl(dt: number) {
@@ -763,6 +816,10 @@ export class ViceGame {
     const right = new Vector3(fwd.z, 0, -fwd.x);
     const tx = fwd.x * -ins.moveY + right.x * ins.moveX;
     const tz = fwd.z * -ins.moveY + right.z * ins.moveX;
+    if (this.wantDropClimb(w, tx, tz) || centerInside(p.x, p.y + 0.35, p.z, this.city.colliders)) {
+      this.dropClimb();
+      return;
+    }
     const alongX = tx + w.nx * (tx * w.nx + tz * w.nz);
     const alongZ = tz + w.nz * (tx * w.nx + tz * w.nz);
     p.x += alongX * 3.6 * dt;
@@ -773,26 +830,27 @@ export class ViceGame {
     p.y += climb * dt;
     p.y = Math.max(0.35, p.y);
     const pinned = nearestWall(p.x, p.y, p.z, this.city.colliders, 1.85) ?? w;
-    p.x = pinned.x + pinned.nx * (PLAYER_R + 0.1);
-    p.z = pinned.z + pinned.nz * (PLAYER_R + 0.1);
     this.crawlN = { nx: pinned.nx, nz: pinned.nz, maxY: pinned.maxY };
     p.yaw = Math.atan2(-pinned.nx, -pinned.nz);
+    if (centerInside(p.x, p.y + 0.35, p.z, this.city.colliders)) {
+      this.dropClimb();
+      return;
+    }
+    const gap = PLAYER_R + 0.22;
+    p.x = pinned.x + pinned.nx * gap;
+    p.z = pinned.z + pinned.nz * gap;
     const stuck = this.finishMove();
     this.playerMesh.setEnabled(true);
+    if (stuck === "out" || centerInside(p.x, p.y + 0.35, p.z, this.city.colliders)) {
+      this.dropClimb();
+      return;
+    }
     if (stuck === "roof" || p.y >= pinned.maxY - 0.85) {
       p.x = pinned.x - pinned.nx * 1.15;
       p.z = pinned.z - pinned.nz * 1.15;
       this.landOn(pinned.maxY);
       resolveCapsule(p, this.city.colliders, PLAYER_R);
       return;
-    }
-    if (ins.jumpPressed || (ins.swingHeld && !ins.climbHeld)) {
-      p.vx = pinned.nx * 8.6;
-      p.vz = pinned.nz * 8.6;
-      p.vy = 6.4;
-      this.mode = "air";
-      this.crawlN = null;
-      sharedSfx.whoosh();
     }
   }
 
@@ -1016,8 +1074,7 @@ export class ViceGame {
     if (this.interior === "street") {
       const mart = this.city.interiors.mart;
       const gar = this.city.interiors.garage;
-      const club = this.city.interiors.club;
-      if (dist2(this.player.x, this.player.z, club.doorX, club.doorZ) < 2.8) this.enterInterior("club");
+      if (this.nearClubEnter()) this.enterInterior("club");
       else if (dist2(this.player.x, this.player.z, mart.doorX, mart.doorZ) < 2.6) this.enterInterior("mart");
       else if (dist2(this.player.x, this.player.z, gar.doorX, gar.doorZ) < 2.8) this.enterInterior("garage");
     }
@@ -1045,6 +1102,7 @@ export class ViceGame {
       }
     }
     this.interior = id;
+    if (id === "club") this.clubEntered = true;
     this.player.x = room.spawnX;
     this.player.z = room.spawnZ;
     this.player.y = 0;
@@ -1969,6 +2027,7 @@ export class ViceGame {
       this.assistMark.setEnabled(false);
     }
     this.placeMarker();
+    this.placeClubPing();
   }
 
   private placeMarker() {
@@ -2003,6 +2062,19 @@ export class ViceGame {
     this.marker.setEnabled(this.interior === "street");
     this.marker.position.set(x, y + Math.sin(this.time * 3) * 0.18, z);
     this.marker.rotation.y = this.time * 0.6;
+  }
+
+  private placeClubPing() {
+    const show = !this.clubEntered && this.interior === "street";
+    this.clubPing.setEnabled(show);
+    if (!show) return;
+    const south = LOC.club.z - CLUB_SIZE.d * 0.5;
+    this.clubPing.position.set(
+      LOC.club.x,
+      10.4 + Math.sin(this.time * 2.4) * 0.35,
+      south - 1.1,
+    );
+    this.clubPing.rotation.y = this.time * 0.8;
   }
 
   private missions(_dt: number) {
@@ -2057,7 +2129,7 @@ export class ViceGame {
         this.subtitle = "South Docks. Keep swinging.";
         if (this.aim && this.mode === "ground") this.prompt = "HOLD F  SALIN";
         else if (this.mode === "swing") this.prompt = "RELEASE  FLY    E  ZIP";
-        else if (this.mode === "crawl") this.prompt = "HOLD C  TIRMAN    VAULT AT LEDGE";
+        else if (this.mode === "crawl") this.prompt = "SPACE  ZIPLA    C  TIRMAN  DROP";
         break;
       default: {
         const _never: never = this.mission;
@@ -2067,17 +2139,28 @@ export class ViceGame {
     if (this.drive) this.prompt = "F / BİN  İN";
     else if (nearCar && this.mode === "ground" && this.player.y < 1.35) {
       this.prompt = "F / BİN";
-    } else if (this.mode === "crawl") this.prompt = "HOLD C  TIRMAN    VAULT THE LEDGE";
-    else if (canClimb && this.mode === "ground") this.prompt = this.prompt || "HOLD C  TIRMAN";
+    }     else if (this.mode === "crawl") this.prompt = "SPACE  ZIPLA    C  TIRMAN  DROP";
+    else if (canClimb && this.mode === "ground") this.prompt = this.prompt || "C  TIRMAN";
     const door = this.nearDoor();
     if (door === "enter") this.prompt = "F  GİR";
     else if (door === "exit") this.prompt = "F  ÇIK";
   }
 
+  private nearClubEnter(): boolean {
+    if (this.drive || this.mode !== "ground" || this.interior !== "street") return false;
+    const room = this.city.interiors.club;
+    if (dist2(this.player.x, this.player.z, room.doorX, room.doorZ) < 5.8) return true;
+    const south = LOC.club.z - CLUB_SIZE.d * 0.5;
+    return Math.abs(this.player.x - LOC.club.x) < 9
+      && this.player.z > south - 5.6
+      && this.player.z < south + 1.4;
+  }
+
   private nearDoor(): "enter" | "exit" | null {
     if (this.drive || this.mode !== "ground") return null;
     if (this.interior === "street") {
-      const rooms = [this.city.interiors.club, this.city.interiors.mart, this.city.interiors.garage];
+      if (this.nearClubEnter()) return "enter";
+      const rooms = [this.city.interiors.mart, this.city.interiors.garage];
       for (const room of rooms) {
         if (dist2(this.player.x, this.player.z, room.doorX, room.doorZ) < 2.8) return "enter";
       }
@@ -2141,7 +2224,15 @@ export class ViceGame {
     h.canAttach = !!this.aim && !this.drive;
     h.nearCar = !!this.nearestCar(3.2) && this.mode === "ground" && this.player.y < 1.35 && !this.drive;
     h.nearDoor = this.nearDoor() !== null;
-    h.canClimb = !this.drive && !!nearestWall(this.player.x, Math.max(0.35, this.player.y + 0.4), this.player.z, this.city.colliders, 1.85);
+    h.canClimb = !this.drive && (
+      this.mode === "crawl"
+      || !!nearestWall(this.player.x, Math.max(0.35, this.player.y + 0.4), this.player.z, this.city.colliders, 1.85)
+    );
+    h.clubPing = !this.clubEntered && this.interior === "street";
+    if (h.clubPing) {
+      const d = Math.round(dist2(this.player.x, this.player.z, LOC.club.x, LOC.club.z - CLUB_SIZE.d * 0.5));
+      h.clubHint = d < 8 ? "SALT GLOW  F  GİR" : "SALT GLOW  " + d + "m";
+    }
     h.fade = this.fade;
     h.busted = this.busted;
     h.fps = this.fps;

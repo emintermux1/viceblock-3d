@@ -206,6 +206,23 @@ button, .wallet-adapter-button { font-family: inherit; }
 .hud-hp-lab { font-size: 10px; letter-spacing: 0.14em; color: #ff6a4d; }
 .bar-track { flex: 1; height: 10px; background: #1a1010; border: 1px solid #3a2020; display: block; }
 .bar.health { display: block; height: 100%; background: linear-gradient(90deg, #c03030, #ff6a4d); }
+.hud-club-ping {
+  position: absolute; left: 50%; top: calc(52px + env(safe-area-inset-top, 0px));
+  transform: translateX(-50%);
+  background: rgba(28, 4, 16, 0.78);
+  border: 1px solid #ff4da6;
+  color: #ff4da6;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 7px 16px;
+  text-shadow: 0 0 12px #ff4da6;
+  pointer-events: none;
+  animation: clubping 1.4s ease-in-out infinite;
+}
+@keyframes clubping {
+  50% { filter: brightness(1.35); box-shadow: 0 0 18px rgba(255, 77, 166, 0.45); }
+}
 .hud-prompt {
   position: absolute; left: 50%; bottom: calc(26% + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
@@ -324,6 +341,7 @@ button, .wallet-adapter-button { font-family: inherit; }
   .hud-job span { font-size: 12px; }
   .hud-prompt { bottom: calc(40% + env(safe-area-inset-bottom, 0px)); font-size: 13px; padding: 6px 12px; }
   .hud-sub { top: calc(58px + env(safe-area-inset-top, 0px)); font-size: 13px; max-width: 70vw; }
+  .hud-club-ping { top: calc(84px + env(safe-area-inset-top, 0px)); font-size: 12px; padding: 5px 12px; }
   .hud-search { font-size: 9px; }
   .hud-bust { font-size: 42px; }
   .hud-radio-chip { font-size: 10px; padding: 3px 6px; }
