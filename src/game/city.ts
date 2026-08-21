@@ -1,9 +1,9 @@
 import {
   Color3, Color4, DirectionalLight, DynamicTexture, HemisphericLight, Mesh, MeshBuilder,
-  PointLight, Quaternion, Scene, StandardMaterial, Vector3,
+  ParticleSystem, PointLight, Quaternion, Scene, StandardMaterial, Vector3,
 } from "@babylonjs/core";
 import {
-  asphaltMat, makeDecal, makeSign, mat, roadMat, sidewalkMat, tickCityArt, uniqueMat, waterMat, woodDockMat,
+  asphaltMat, flareTex, makeDecal, makeSign, mat, roadMat, sidewalkMat, tickCityArt, uniqueMat, waterMat, woodDockMat,
 } from "./art";
 import { FENCE, INT, LOC } from "./constants";
 import {
@@ -133,6 +133,8 @@ export function buildCity(scene: Scene): CityData {
   placePalmsAndLamps(scene, anchors);
   placeSwingCables(scene, anchors);
   const benches = placeDressing(scene);
+  placeDust(scene, LOC.spawn.x, LOC.spawn.z);
+  placeDust(scene, 0, 34);
   const interiors = buildInteriors(scene);
 
   return {
@@ -587,6 +589,28 @@ function placeDressing(scene: Scene): { x: number; z: number }[] {
     puff.material = sm;
   }
   return benches;
+}
+
+function placeDust(scene: Scene, x: number, z: number) {
+  const ps = new ParticleSystem("dust", 28, scene);
+  ps.particleTexture = flareTex(scene);
+  ps.emitter = new Vector3(x, 1.4, z);
+  ps.minEmitBox = new Vector3(-6, 0, -6);
+  ps.maxEmitBox = new Vector3(6, 2.2, 6);
+  ps.color1 = new Color4(1, 0.72, 0.42, 0.18);
+  ps.color2 = new Color4(0.7, 0.55, 0.4, 0.06);
+  ps.minSize = 0.08;
+  ps.maxSize = 0.28;
+  ps.minLifeTime = 1.6;
+  ps.maxLifeTime = 3.4;
+  ps.emitRate = 9;
+  ps.direction1 = new Vector3(-0.15, 0.12, -0.1);
+  ps.direction2 = new Vector3(0.15, 0.35, 0.1);
+  ps.gravity = new Vector3(0, -0.04, 0);
+  ps.minEmitPower = 0.08;
+  ps.maxEmitPower = 0.22;
+  ps.updateSpeed = 0.02;
+  ps.start();
 }
 
 function roomWalls(scene: Scene, cx: number, cz: number, w: number, d: number, h: number, hex: string, doorZ: "neg" | "pos"): AABB[] {
