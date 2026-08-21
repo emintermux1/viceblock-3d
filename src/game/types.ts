@@ -5,6 +5,7 @@ export type MoveMode = "ground" | "air" | "swing" | "zip" | "crawl";
 export type CopState = "chase" | "down" | "webbed";
 export type InteriorId = "street" | "mart" | "garage" | "jail" | "club";
 export type BuildingStyle = "tower" | "walkup" | "warehouse" | "shop";
+export type SexKind = "yat" | "sakso" | "seks";
 
 export type HudState = {
   cash: number;
@@ -47,6 +48,10 @@ export type HudState = {
   inDance: boolean;
   nearSex: boolean;
   inSex: boolean;
+  sexActs: boolean;
+  sexTalk: string;
+  sexTalkEn: string;
+  sexKind: SexKind | "";
   enterVerb: string;
 };
 
@@ -91,6 +96,10 @@ export const emptyHud = (): HudState => ({
   inDance: false,
   nearSex: false,
   inSex: false,
+  sexActs: false,
+  sexTalk: "",
+  sexTalkEn: "",
+  sexKind: "",
   enterVerb: "",
 });
 

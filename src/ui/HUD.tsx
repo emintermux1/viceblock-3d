@@ -2,9 +2,13 @@ import { useEffect, useRef } from "react";
 import type { HudState } from "../game/types";
 import { LOC } from "../game/constants";
 
-type Props = { hud: HudState; onTapMusic?: () => void };
+type Props = {
+  hud: HudState;
+  onTapMusic?: () => void;
+  onSexAct?: (kind: "yat" | "sakso" | "seks") => void;
+};
 
-export function HUD({ hud, onTapMusic }: Props) {
+export function HUD({ hud, onTapMusic, onSexAct }: Props) {
   const live = hud.radioLive;
   return (
     <div className="hud" aria-hidden>
@@ -42,6 +46,19 @@ export function HUD({ hud, onTapMusic }: Props) {
       </div>
       <div className="hud-map"><MiniMap hud={hud} /></div>
       {hud.clubPing && hud.clubHint ? <div className="hud-club-ping">{hud.clubHint}</div> : null}
+      {hud.sexTalk ? (
+        <div className="hud-sex-talk">
+          <b>{hud.sexTalk}</b>
+          <i>{hud.sexTalkEn}</i>
+        </div>
+      ) : null}
+      {hud.sexActs ? (
+        <div className="hud-sex-acts">
+          <button type="button" className={hud.sexKind === "yat" ? "on" : ""} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onSexAct?.("yat"); }}>1 YAT</button>
+          <button type="button" className={hud.sexKind === "sakso" ? "on" : ""} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onSexAct?.("sakso"); }}>2 SAKSO</button>
+          <button type="button" className={hud.sexKind === "seks" ? "on" : ""} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onSexAct?.("seks"); }}>3 SEKS</button>
+        </div>
+      ) : null}
       {hud.prompt ? <div className="hud-prompt">{hud.prompt}</div> : null}
       {hud.subtitle ? <div className="hud-sub">{hud.subtitle}</div> : null}
       {hud.busted ? <div className="hud-bust">BUSTED</div> : null}
