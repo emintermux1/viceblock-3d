@@ -29,7 +29,7 @@ type Car = {
   mesh: Mesh; kind: CarKind; color: string; x: number; z: number; y: number;
   yaw: number; speed: number; hp: number; body: number; engineHp: number; tires: number;
   wrecked: boolean; exploding: boolean; boomT: number; occupied: boolean; special: string;
-  smoke: ParticleSystem | null; stolen: boolean;
+  smoke: ParticleSystem | null; stolen: boolean; flow: boolean; flowAxis: "x" | "z"; flowDir: number;
 };
 type PedRole = "wander" | "group" | "sit" | "cross" | "clerk" | "fence";
 type Ped = {
@@ -120,6 +120,7 @@ export class ViceGame {
   stillT = 0;
   camPunch = 0;
   camDip = 0;
+  private landCrouch = 0;
   private wasGrounded = true;
   private stepT = 0;
   private ghostArmed = false;
@@ -157,6 +158,7 @@ export class ViceGame {
     this.marker = MeshBuilder.CreateTorus("mk", { diameter: 3.2, thickness: 0.18, tessellation: 20 }, this.scene);
     this.marker.material = mat(this.scene, "#ffc83d", 0.8);
     this.spawnCars();
+    this.spawnFlowCars();
     this.spawnPeds();
     this.restore();
     this.placeMarker();
@@ -230,6 +232,31 @@ export class ViceGame {
         speed: 0, hp: CAR_HP, body: 100, engineHp: 100, tires: 100,
         wrecked: false, exploding: false, boomT: 0,
         occupied: false, special: s.special, smoke: null, stolen: false,
+        flow: false, flowAxis: "z", flowDir: 1,
+      });
+    }
+  }
+
+  private spawnFlowCars() {
+    const specs: { x: number; z: number; kind: CarKind; color: string; axis: "x" | "z"; dir: number }[] = [
+      { x: -60, z: -28, kind: "sedan", color: "#4a6088", axis: "z", dir: 1 },
+      { x: 20, z: 46, kind: "hatch", color: "#c45a38", axis: "z", dir: -1 },
+      { x: -20, z: -18, kind: "sedan", color: "#2a4a58", axis: "z", dir: 1 },
+      { x: 60, z: 38, kind: "muscle", color: "#3a2a40", axis: "z", dir: -1 },
+      { x: -42, z: 0, kind: "hatch", color: "#d4a040", axis: "x", dir: 1 },
+      { x: 48, z: 30, kind: "sedan", color: "#1a3a44", axis: "x", dir: -1 },
+    ];
+    for (const s of specs) {
+      const yaw = s.axis === "z" ? (s.dir > 0 ? 0 : Math.PI) : (s.dir > 0 ? Math.PI / 2 : -Math.PI / 2);
+      const mesh = makeCar(this.scene, s.color, s.kind);
+      mesh.position.set(s.x, 0, s.z);
+      mesh.rotation.y = yaw;
+      this.cars.push({
+        mesh, kind: s.kind, color: s.color, x: s.x, z: s.z, y: 0, yaw,
+        speed: 9.2, hp: CAR_HP, body: 100, engineHp: 100, tires: 100,
+        wrecked: false, exploding: false, boomT: 0,
+        occupied: false, special: "", smoke: null, stolen: false,
+        flow: true, flowAxis: s.axis, flowDir: s.dir,
       });
     }
   }
@@ -242,6 +269,8 @@ export class ViceGame {
       { x: 18, z: 36, role: "wander" }, { x: -40, z: 28, role: "wander" },
       { x: 40, z: 8, role: "wander" }, { x: 30, z: 50, role: "wander" },
       { x: 8, z: -8, role: "wander" }, { x: 50, z: 30, role: "wander" },
+      { x: -28, z: 8, role: "wander" }, { x: -14, z: 6, role: "cross" },
+      { x: -32, z: 40, role: "wander" }, { x: 4, z: 38, role: "group" },
     ];
     for (let i = 0; i < spots.length; i++) {
       const s = spots[i];
@@ -301,7 +330,8 @@ export class ViceGame {
     this.player.meleeT = Math.max(0, this.player.meleeT - dt);
     this.player.flash = Math.max(0, this.player.flash - dt);
     this.camPunch = Math.max(0, this.camPunch - dt * 4);
-    this.camDip = Math.max(0, this.camDip - dt * 3.2);
+    this.camDip = Math.max(0, this.camDip - dt * 2.4);
+    this.landCrouch = Math.max(0, this.landCrouch - dt * 2.8);
     if (this.player.reloadT > 0) {
       this.player.reloadT -= dt;
       if (this.player.reloadT <= 0) {
@@ -324,6 +354,7 @@ export class ViceGame {
     this.updatePeds(dt);
     this.updateCops(dt);
     this.updateTracers(dt);
+    this.updateFlowCars(dt);
     this.updateCarsFx(dt);
     if (this.interior !== "jail") this.combat(dt);
     this.missions(dt);
@@ -481,7 +512,8 @@ export class ViceGame {
   }
 
   private drawSilk(x: number, y: number, z: number) {
-    placeSilk(this.silk, this.player.x + 0.16, this.player.y + 1.18, this.player.z, x, y, z);
+    const sag = 0.28 + Math.sin(this.time * 6.4 + this.player.x * 0.08) * 0.16;
+    placeSilk(this.silk, this.player.x + 0.16, this.player.y + 1.18, this.player.z, x, y, z, sag);
   }
 
   private faceVelocity() {
@@ -594,8 +626,11 @@ export class ViceGame {
     const floor = standY(p.x, p.z, this.city.colliders);
     if (p.y <= floor + 0.38 && p.vy <= 8) {
       if (this.mode === "air" || this.mode === "swing" || this.mode === "zip") {
+        const drop = Math.max(0, -p.vy);
         const spd = Math.hypot(p.vx, p.vz);
-        if (spd > 16) sharedSfx.impact();
+        this.camDip = clamp(0.16 + drop * 0.038 + spd * 0.006, 0.14, 0.5);
+        this.landCrouch = clamp(0.14 + drop * 0.022, 0.1, 0.3);
+        if (spd > 13 || drop > 9) sharedSfx.impact();
       }
       this.landOn(floor);
     }
@@ -899,7 +934,7 @@ export class ViceGame {
     let best: Car | null = null;
     let bestD = 3.4;
     for (const c of this.cars) {
-      if (c.wrecked) continue;
+      if (c.wrecked || c.flow) continue;
       const d = dist2(this.player.x, this.player.z, c.x, c.z);
       if (d < bestD) { bestD = d; best = c; }
     }
@@ -1685,15 +1720,42 @@ export class ViceGame {
     }
   }
 
+  private updateFlowCars(dt: number) {
+    for (const c of this.cars) {
+      if (!c.flow || c.wrecked) continue;
+      c.speed = 9.2;
+      if (c.flowAxis === "z") {
+        c.z += c.flowDir * c.speed * dt;
+        if (c.flowDir > 0 && c.z > 68) c.z = -52;
+        if (c.flowDir < 0 && c.z < -52) c.z = 68;
+        c.yaw = c.flowDir > 0 ? 0 : Math.PI;
+      } else {
+        c.x += c.flowDir * c.speed * dt;
+        if (c.flowDir > 0 && c.x > 78) c.x = -78;
+        if (c.flowDir < 0 && c.x < -78) c.x = 78;
+        c.yaw = c.flowDir > 0 ? Math.PI / 2 : -Math.PI / 2;
+      }
+    }
+  }
+
   private updateCarsFx(_dt: number) {
     for (const c of this.cars) {
-      const bob = Math.abs(c.speed) > 1 ? Math.sin(this.time * 11) * 0.035 * Math.min(1, Math.abs(c.speed) / 14) : 0;
+      const spd = Math.abs(c.speed);
+      const bob = spd > 1 ? Math.sin(this.time * 10 + c.x) * 0.04 * Math.min(1, spd / 12) : 0;
       c.mesh.position.set(c.x, bob, c.z);
       c.mesh.rotation.y = c.yaw;
+      c.mesh.rotation.x = spd > 1 ? -spd * 0.0035 + Math.sin(this.time * 9) * 0.012 : 0;
       if (this.drive === c) {
-        c.mesh.rotation.z = -this.input.moveX * 0.09 * Math.min(1, Math.abs(c.speed) / 9);
+        c.mesh.rotation.z = -this.input.moveX * 0.11 * Math.min(1, spd / 8);
+      } else if (c.flow) {
+        c.mesh.rotation.z = Math.sin(this.time * 3 + c.z) * 0.02;
       } else {
         c.mesh.rotation.z = 0;
+      }
+      if (spd > 0.4) {
+        for (const ch of c.mesh.getChildMeshes(false)) {
+          if (ch.name === "wh" || ch.name === "rim") ch.rotation.x += spd * _dt * 1.8;
+        }
       }
     }
   }
@@ -1705,7 +1767,7 @@ export class ViceGame {
       : this.interior !== "street" ? this.camDist
       : flying ? 9.2 + Math.min(4.2, spd * 0.055)
       : 8.2;
-    this.camDist += (wantDist - this.camDist) * 0.12;
+    this.camDist += (wantDist - this.camDist) * (this.camDip > 0.04 ? 0.07 : 0.12);
     const wantFov = flying ? 0.86 + Math.min(0.24, spd * 0.0055) : 0.78;
     this.camFov += (wantFov - this.camFov) * 0.1;
     this.camera.fov = this.camFov;
@@ -1734,7 +1796,7 @@ export class ViceGame {
   }
 
   private syncMeshes() {
-    this.playerMesh.position.set(this.player.x, this.player.y, this.player.z);
+    this.playerMesh.position.set(this.player.x, this.player.y - this.landCrouch * 0.32, this.player.z);
     this.playerMesh.rotation.y = this.player.yaw;
     const flying = this.mode === "swing" || this.mode === "zip" || this.mode === "air";
     this.playerMesh.setEnabled(!this.drive);
@@ -1745,7 +1807,7 @@ export class ViceGame {
     else if (flying) tickSwingPose(this.playerMesh, this.time, this.mode === "swing" || this.mode === "zip");
     else {
       const moving = Math.hypot(this.player.vx, this.player.vz) > 0.45;
-      if (this.interior !== "jail") tickWalk(this.playerMesh, this.time, moving, true);
+      if (this.interior !== "jail") tickWalk(this.playerMesh, this.time, moving, true, this.input.sprint);
     }
     if (!this.drive) this.applyGunPose();
     if (this.aim && this.interior === "street") {
@@ -1887,7 +1949,7 @@ export class ViceGame {
     let best: Car | null = null;
     let d0 = r;
     for (const c of this.cars) {
-      if (c.wrecked) continue;
+      if (c.wrecked || c.flow) continue;
       const d = dist2(this.player.x, this.player.z, c.x, c.z);
       if (d < d0) { d0 = d; best = c; }
     }

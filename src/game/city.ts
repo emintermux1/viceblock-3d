@@ -3,12 +3,13 @@ import {
   PointLight, Quaternion, Scene, StandardMaterial, Vector3,
 } from "@babylonjs/core";
 import {
-  asphaltMat, makeDecal, makeSign, mat, roadMat, sidewalkMat, tickCityArt, waterMat, woodDockMat,
+  asphaltMat, makeDecal, makeSign, mat, roadMat, sidewalkMat, tickCityArt, uniqueMat, waterMat, woodDockMat,
 } from "./art";
 import { FENCE, INT, LOC } from "./constants";
 import {
-  makeBench, makeBillboard, makeBoat, makeBuilding, makeCone, makeContainer, makeCrane, makeCrate,
-  makeDumpster, makeFence, makeHydrant, makeLamp, makeNewsbox, makePalm, makePiling, makeTrash,
+  makeAwning, makeBench, makeBillboard, makeBird, makeBoat, makeBuilding, makeCone, makeContainer,
+  makeCrane, makeCrate, makeDumpster, makeFence, makeHydrant, makeLamp, makeNewsbox, makePalm,
+  makePiling, makePlate, makeTrafficLight, makeTrash, makeWallTag,
   type BuildingStyle,
 } from "./meshes";
 import { addBuildingAnchors, type Anchor } from "./swing";
@@ -83,30 +84,33 @@ function faceRoadYaw(x: number, z: number): number {
 }
 
 export function buildCity(scene: Scene): CityData {
-  scene.clearColor = new Color4(0.1, 0.05, 0.12, 1);
+  scene.clearColor = new Color4(0.08, 0.04, 0.1, 1);
   scene.fogMode = Scene.FOGMODE_EXP2;
-  scene.fogColor = new Color3(0.62, 0.3, 0.22);
-  scene.fogDensity = 0.0021;
-  scene.ambientColor = new Color3(0.14, 0.08, 0.1);
+  scene.fogColor = new Color3(0.72, 0.34, 0.24);
+  scene.fogDensity = 0.00255;
+  scene.ambientColor = new Color3(0.12, 0.07, 0.1);
   const ipc = scene.imageProcessingConfiguration;
   ipc.toneMappingEnabled = true;
-  ipc.exposure = 1.04;
-  ipc.contrast = 1.32;
+  ipc.exposure = 0.96;
+  ipc.contrast = 1.4;
 
   const hemi = new HemisphericLight("hemi", new Vector3(0.15, 1, 0.1), scene);
-  hemi.intensity = 0.36;
-  hemi.diffuse = new Color3(1, 0.55, 0.58);
-  hemi.groundColor = new Color3(0.28, 0.12, 0.08);
+  hemi.intensity = 0.3;
+  hemi.diffuse = new Color3(1, 0.52, 0.55);
+  hemi.groundColor = new Color3(0.22, 0.14, 0.16);
 
   const sun = new DirectionalLight("sun", new Vector3(-0.55, -0.42, 0.38), scene);
-  sun.intensity = 1.78;
-  sun.diffuse = new Color3(1, 0.46, 0.2);
+  sun.intensity = 1.52;
+  sun.diffuse = new Color3(1, 0.42, 0.18);
   const rim = new DirectionalLight("rim", new Vector3(0.55, -0.15, -0.55), scene);
-  rim.intensity = 0.62;
-  rim.diffuse = new Color3(0.42, 0.55, 0.95);
+  rim.intensity = 0.72;
+  rim.diffuse = new Color3(0.28, 0.72, 0.85);
   const bounce = new DirectionalLight("bounce", new Vector3(0.1, 0.65, 0.2), scene);
-  bounce.intensity = 0.22;
-  bounce.diffuse = new Color3(0.7, 0.32, 0.18);
+  bounce.intensity = 0.26;
+  bounce.diffuse = new Color3(0.85, 0.38, 0.16);
+  const waterBounce = new DirectionalLight("wbounce", new Vector3(0.05, 0.35, -0.8), scene);
+  waterBounce.intensity = 0.18;
+  waterBounce.diffuse = new Color3(0.2, 0.55, 0.62);
 
   paintSky(scene);
   paintGround(scene);
@@ -407,8 +411,19 @@ function placeStrip(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
     colliders.push(boxAABB(x, 42, 9.2, 8.2, 11));
     addBuildingAnchors(anchors, x, 42, 9.2, 8.2, 11);
     makeSign(scene, name, x, 6.95, 46.2, name.length > 6 ? 6.3 : 4.7, 0.76, "#08080c", neon, Math.PI);
+    makeAwning(scene, x, 3.15, 46.1, 8.4, neon === "#ff4d8d" ? "#c03050" : neon === "#2ef2d0" ? "#0a4a44" : "#c45a20", Math.PI);
   }
   makeBillboard(scene, -8, 48, "NOVA CITY FM", "#ffc83d", Math.PI);
+  makeSign(scene, "SALT LINE", -44, 4.4, 46.15, 4.4, 0.42, "#100810", "#ff4d8d", Math.PI);
+  makeSign(scene, "LATE RICE", 2, 4.35, 46.15, 4.6, 0.4, "#100c04", "#ffc83d", Math.PI);
+  const neonM = new PointLight("neonm", new Vector3(-32, 6.2, 46), scene);
+  neonM.diffuse = new Color3(1, 0.28, 0.62);
+  neonM.intensity = 0.55;
+  neonM.range = 16;
+  const neonT = new PointLight("neont", new Vector3(2, 6.1, 46), scene);
+  neonT.diffuse = new Color3(1, 0.72, 0.28);
+  neonT.intensity = 0.42;
+  neonT.range = 14;
 }
 
 function placeDocks(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
@@ -440,6 +455,10 @@ function placeDocks(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
   makeCrate(scene, 40, 76, 0.3);
   makeCrate(scene, 41.1, 77.2, -0.4);
   makeCrate(scene, 48, 74, 0.8);
+  makeCrate(scene, 49.1, 73.2, 0.15);
+  makeCrate(scene, 33, 77.4, -0.5);
+  makeCone(scene, 30.4, 74.2);
+  makeCone(scene, 31.2, 75);
 
   makeFence(scene, -20, 73.4, 36, 0);
   makeFence(scene, 8, 73.4, 22, 0);
@@ -513,11 +532,15 @@ function placeDressing(scene: Scene): { x: number; z: number }[] {
   makeDumpster(scene, -38, 37.4, 0.2);
   makeDumpster(scene, 8, 37.2, -0.1);
   makeDumpster(scene, 34, 37.5, 0.4);
+  makeDumpster(scene, -22, 8.6, 0.15);
   makeTrash(scene, -37, 36.2);
   makeTrash(scene, 9.2, 36.4);
+  makeTrash(scene, -24.6, 7.2);
+  makeTrash(scene, -8.4, 14.2);
   makeHydrant(scene, -56, 26);
   makeHydrant(scene, 16, 4);
   makeHydrant(scene, 24, 32);
+  makeHydrant(scene, -20, 8);
   const benches = [
     { x: -24, z: 4 },
     { x: 8, z: 32 },
@@ -528,11 +551,41 @@ function placeDressing(scene: Scene): { x: number; z: number }[] {
   makeBench(scene, 18, 4, -0.2);
   makeNewsbox(scene, 10, 26);
   makeNewsbox(scene, -30, 4);
+  makeNewsbox(scene, -18, 7.4);
+  makeCone(scene, -8, 12.5);
+  makeCone(scene, -7.2, 13.4);
+  makeCrate(scene, -16, 9.2, 0.25);
+  makeCrate(scene, -15.1, 10.1, -0.3);
+  makePlate(scene, "DOCK ST", -22, 2.2, 0.1, "#2ef2d0");
+  makePlate(scene, "NOVA WAY", -4, 18, 1.2, "#ffc83d");
+  makePlate(scene, "PIER RD", 36, 68, 0.05, "#2ef2d0");
+  makePlate(scene, "SALT LN", 8, 36, Math.PI, "#ff4d8d");
+  makeTrafficLight(scene, -16.6, 3.6, Math.PI / 2);
+  makeTrafficLight(scene, 16.6, -3.6, -Math.PI / 2);
+  makeTrafficLight(scene, -16.6, 33.6, Math.PI / 2);
+  makeTrafficLight(scene, 23.4, 26.6, 0);
+  makeWallTag(scene, "NOVA", -36.6, 2.2, 37.9, 2.6, 0.7, Math.PI, "#2ef2d0");
+  makeWallTag(scene, "DOCKS", 9.8, 2.4, 37.9, 2.8, 0.65, Math.PI, "#ff8a3d");
+  makeWallTag(scene, "SALT", -21.2, 1.8, 8.8, 2.2, 0.55, 0.2, "#ff4d8d");
   makeSign(scene, "SOUTH DOCKS", -18, 6.4, 8.2, 7.2, 0.85, "#081018", "#2ef2d0", Math.PI);
   makeSign(scene, "OPEN LATE", -36, 4.8, 2.2, 4.2, 0.55, "#120808", "#ff4d8d", Math.PI * 0.15);
+  makeSign(scene, "CARGO 6", 40, 5.4, 69.2, 4.4, 0.48, "#1a1008", "#ffc83d", Math.PI);
+  makeSign(scene, "PIER RADIO", 28, 8.4, 46.2, 5.2, 0.5, "#100818", "#b46aff", Math.PI);
   makeDecal(scene, "DOCK ST", -26, 5.4, 5.6, 1.15, 0, "#e8d8a0");
   makeDecal(scene, "STRIP", 0, 32.4, 4.8, 1.05, 0, "#ffc83d");
   makeDecal(scene, "PIER", 40, 72, 3.6, 0.9, 0, "#2ef2d0");
+  makeDecal(scene, "SALT", -10, 8.2, 3.4, 0.8, 0.2, "#ff4da6");
+  makeBird(scene, -20, 16, 12);
+  makeBird(scene, 8, 18, 40);
+  makeBird(scene, 40, 14, 78);
+  makeBird(scene, -40, 20, 30);
+  for (const [x, y, z] of [[-38, 1.25, 37.4], [-22, 1.2, 8.6], [44, 1.1, 64]] as [number, number, number][]) {
+    const puff = MeshBuilder.CreateSphere("steam", { diameter: 0.5, segments: 5 }, scene);
+    puff.position.set(x, y, z);
+    const sm = uniqueMat(scene, "#d0d8dc", 0.08, 0);
+    sm.alpha = 0.22;
+    puff.material = sm;
+  }
   return benches;
 }
 
