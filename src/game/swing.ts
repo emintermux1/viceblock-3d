@@ -172,22 +172,64 @@ export function stepZip(
   return false;
 }
 
-export function roofY(x: number, z: number, cols: AABB[]): number {
+export function roofY(x: number, z: number, cols: AABB[], pad = 0): number {
   let y = 0;
   for (const b of cols) {
-    if (x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) {
+    if (x >= b.minX - pad && x <= b.maxX + pad && z >= b.minZ - pad && z <= b.maxZ + pad) {
       if (b.maxY > y) y = b.maxY;
     }
   }
   return y;
 }
 
+export function standY(x: number, z: number, cols: AABB[]): number {
+  const r = 0.32;
+  return Math.max(
+    roofY(x, z, cols, 0.42),
+    roofY(x + r, z, cols, 0.08),
+    roofY(x - r, z, cols, 0.08),
+    roofY(x, z + r, cols, 0.08),
+    roofY(x, z - r, cols, 0.08),
+  );
+}
+
+export function unstickPlayer(
+  p: { x: number; y: number; z: number; vx: number; vy: number; vz: number },
+  cols: AABB[],
+): "roof" | "out" | "ok" {
+  let result: "roof" | "out" | "ok" = "ok";
+  for (const b of cols) {
+    if (p.x <= b.minX || p.x >= b.maxX || p.z <= b.minZ || p.z >= b.maxZ) continue;
+    if (p.y >= b.maxY - 0.06) continue;
+    if (p.y >= b.maxY - 1.45) {
+      p.y = b.maxY;
+      if (p.vy < 0) p.vy = 0;
+      result = "roof";
+      continue;
+    }
+    const left = p.x - b.minX;
+    const right = b.maxX - p.x;
+    const back = p.z - b.minZ;
+    const fwd = b.maxZ - p.z;
+    const m = Math.min(left, right, back, fwd);
+    if (m === left) { p.x = b.minX - 0.55; if (p.vx > 0) p.vx = 0; }
+    else if (m === right) { p.x = b.maxX + 0.55; if (p.vx < 0) p.vx = 0; }
+    else if (m === back) { p.z = b.minZ - 0.55; if (p.vz > 0) p.vz = 0; }
+    else { p.z = b.maxZ + 0.55; if (p.vz < 0) p.vz = 0; }
+    result = "out";
+  }
+  return result;
+}
+
+export type WallHit = { x: number; y: number; z: number; nx: number; nz: number; maxY: number; d: number };
+
 export function nearestWall(
   x: number, y: number, z: number, cols: AABB[], reach: number,
-): { x: number; y: number; z: number; nx: number; nz: number } | null {
-  let best: { x: number; y: number; z: number; nx: number; nz: number; d: number } | null = null;
+): WallHit | null {
+  let best: WallHit | null = null;
   for (const b of cols) {
-    if (y < 1.2 || y > b.maxY - 0.4) continue;
+    if (b.maxY < 1.6) continue;
+    if (y < 0 || y > b.maxY + 0.35) continue;
     const faces: { d: number; nx: number; nz: number; px: number; pz: number }[] = [
       { d: Math.abs(x - b.maxX), nx: 1, nz: 0, px: b.maxX, pz: clamp(z, b.minZ, b.maxZ) },
       { d: Math.abs(x - b.minX), nx: -1, nz: 0, px: b.minX, pz: clamp(z, b.minZ, b.maxZ) },
@@ -195,9 +237,9 @@ export function nearestWall(
       { d: Math.abs(z - b.minZ), nx: 0, nz: -1, px: clamp(x, b.minX, b.maxX), pz: b.minZ },
     ];
     for (const f of faces) {
-      const along = f.nx !== 0 ? (z >= b.minZ - 0.4 && z <= b.maxZ + 0.4) : (x >= b.minX - 0.4 && x <= b.maxX + 0.4);
+      const along = f.nx !== 0 ? (z >= b.minZ - 0.55 && z <= b.maxZ + 0.55) : (x >= b.minX - 0.55 && x <= b.maxX + 0.55);
       if (!along || f.d > reach) continue;
-      if (!best || f.d < best.d) best = { x: f.px, y, z: f.pz, nx: f.nx, nz: f.nz, d: f.d };
+      if (!best || f.d < best.d) best = { x: f.px, y, z: f.pz, nx: f.nx, nz: f.nz, maxY: b.maxY, d: f.d };
     }
   }
   return best;

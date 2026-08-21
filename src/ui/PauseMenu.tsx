@@ -17,8 +17,8 @@ export function PauseMenu({ muted, lookInvert, onResume, onMute, onInvert, onExi
         <button type="button" onClick={onInvert}>Look invert: {lookInvert ? "ON" : "OFF"}</button>
         <button type="button" className="ghost" onClick={onExit}>Exit to title</button>
         <p className="pause-hint">
-          Desktop: WASD, mouse look (no lock), hold F SALIN, E ZIP, click ATEŞ, Space jump, V melee.
-          Phone: left stick move, right look, SALIN / ZIP / ATEŞ. Drag up looks up.
+          Desktop: WASD, mouse look, hold F SALIN, E ZIP, C TIRMAN, F BİN near a car, click ATEŞ, Space jump.
+          Phone: left stick, right look, SALIN / ZIP / ATEŞ, TIRMAN and BİN when they appear.
         </p>
       </div>
     </div>

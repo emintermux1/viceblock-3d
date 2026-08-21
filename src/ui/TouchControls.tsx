@@ -1,18 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import type { Input } from "../game/input";
 
-type Props = { input: Input; hidden?: boolean; onPause: () => void };
+type Props = {
+  input: Input;
+  hidden?: boolean;
+  onPause: () => void;
+  nearCar?: boolean;
+  inCar?: boolean;
+  canClimb?: boolean;
+};
 
-function hitOf(el: EventTarget | null): "stick" | "shoot" | "swing" | "zip" | "jump" | "look" | "pause" | "none" {
+function hitOf(el: EventTarget | null): "stick" | "shoot" | "swing" | "zip" | "jump" | "enter" | "climb" | "look" | "pause" | "none" {
   const node = el as HTMLElement | null;
   const kind = node?.closest?.("[data-hit]")?.getAttribute("data-hit");
-  if (kind === "stick" || kind === "shoot" || kind === "swing" || kind === "zip" || kind === "jump" || kind === "look" || kind === "pause") {
+  if (
+    kind === "stick" || kind === "shoot" || kind === "swing" || kind === "zip" ||
+    kind === "jump" || kind === "enter" || kind === "climb" || kind === "look" || kind === "pause"
+  ) {
     return kind;
   }
   return "none";
 }
 
-export function TouchControls({ input, hidden, onPause }: Props) {
+export function TouchControls({ input, hidden, onPause, nearCar, inCar, canClimb }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [, setTick] = useState(0);
   const bump = () => setTick((n) => n + 1);
@@ -23,7 +33,7 @@ export function TouchControls({ input, hidden, onPause }: Props) {
     const down = (e: PointerEvent) => {
       const hit = hitOf(e.target);
       if (hit === "pause") { e.preventDefault(); onPause(); return; }
-      if (hit === "shoot" || hit === "swing" || hit === "zip" || hit === "jump") {
+      if (hit === "shoot" || hit === "swing" || hit === "zip" || hit === "jump" || hit === "enter" || hit === "climb") {
         e.preventDefault();
         input.onPointerDown(e, hit);
         bump();
@@ -75,10 +85,16 @@ export function TouchControls({ input, hidden, onPause }: Props) {
       <div className="touch-look" data-hit="look" />
       <div className="touch-right">
         <button type="button" className="pad-btn pad-pause" data-hit="pause" aria-label="Pause">II</button>
-        <button type="button" className="pad-btn pad-jump" data-hit="jump" aria-label="Jump">⬆</button>
-        <button type="button" className="pad-btn pad-zip" data-hit="zip" aria-label="Zip">ZIP</button>
-        <button type="button" className="pad-btn pad-swing" data-hit="swing" aria-label="Salin">SALIN</button>
-        <button type="button" className="pad-btn pad-shoot" data-hit="shoot" aria-label="Ates">ATEŞ</button>
+        {!inCar && <button type="button" className="pad-btn pad-jump" data-hit="jump" aria-label="Jump">⬆</button>}
+        {!inCar && <button type="button" className="pad-btn pad-zip" data-hit="zip" aria-label="Zip">ZIP</button>}
+        {!inCar && <button type="button" className="pad-btn pad-swing" data-hit="swing" aria-label="Salin">SALIN</button>}
+        {!inCar && <button type="button" className="pad-btn pad-shoot" data-hit="shoot" aria-label="Ates">ATEŞ</button>}
+        {(nearCar || inCar) && (
+          <button type="button" className="pad-btn pad-bin" data-hit="enter" aria-label="Bin">{inCar ? "BİN" : "BİN"}</button>
+        )}
+        {canClimb && !inCar && (
+          <button type="button" className="pad-btn pad-climb" data-hit="climb" aria-label="Tirman">TIRMAN</button>
+        )}
       </div>
     </div>
   );

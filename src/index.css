@@ -89,38 +89,46 @@ button, .wallet-adapter-button { font-family: inherit; }
 .char-fig i { position: absolute; display: block; }
 .cf-head { width: 22px; height: 22px; border-radius: 50%; left: 25px; top: 24px; background: #f0d4c0; }
 .cf-hair { width: 26px; height: 12px; left: 23px; top: 16px; background: #111; border-radius: 10px 10px 4px 4px; }
+.cf-cowl {
+  width: 34px; height: 14px; left: 19px; top: 36px; background: #071820; border-radius: 8px 8px 2px 2px;
+}
 .cf-helm {
-  width: 26px; height: 26px; border-radius: 50%; left: 23px; top: 18px; background: #102028;
+  width: 28px; height: 28px; border-radius: 50%; left: 22px; top: 16px; background: #071820;
 }
 .cf-visor {
   width: 20px; height: 6px; left: 26px; top: 28px; background: #2ef2d0;
   box-shadow: 0 0 8px rgba(46,242,208,0.7);
 }
-.cf-torso { width: 28px; height: 38px; left: 22px; top: 46px; background: #2ef2d0; }
+.cf-torso {
+  width: 28px; height: 38px; left: 22px; top: 46px; background: #071820;
+  background-image: repeating-linear-gradient(60deg, transparent, transparent 4px, rgba(46,242,208,0.35) 4px, rgba(46,242,208,0.35) 5px);
+}
+.cf-web {
+  width: 10px; height: 28px; left: 31px; top: 50px;
+  background: repeating-linear-gradient(180deg, transparent, transparent 3px, rgba(46,242,208,0.55) 3px, rgba(46,242,208,0.55) 4px);
+}
 .cf-arm { width: 8px; height: 32px; top: 48px; background: #2ef2d0; }
 .cf-arm.l { left: 13px; }
 .cf-arm.r { right: 13px; left: auto; }
 .cf-legs { width: 22px; height: 34px; left: 25px; top: 82px; background: #1a2430; }
 .cf-shoes { width: 26px; height: 8px; left: 23px; top: 114px; background: #111; }
 .cf-ear { display: none; }
-.fig-ansem .cf-helm { background: #102028; }
+.fig-ansem .cf-helm, .fig-ansem .cf-cowl, .fig-ansem .cf-torso, .fig-ansem .cf-arm, .fig-ansem .cf-legs, .fig-ansem .cf-shoes { background-color: #071820; }
 .fig-ansem .cf-visor { background: #2ef2d0; }
-.fig-ansem .cf-torso, .fig-ansem .cf-arm { background: #102028; box-shadow: 0 0 10px rgba(46,242,208,0.35); }
+.fig-ansem .cf-arm { background-image: repeating-linear-gradient(60deg, transparent, transparent 3px, rgba(46,242,208,0.3) 3px, rgba(46,242,208,0.3) 4px); }
 .fig-orangie { transform: scaleX(1.12); }
-.fig-orangie .cf-helm { background: #1a2438; width: 30px; left: 21px; }
+.fig-orangie .cf-helm, .fig-orangie .cf-cowl, .fig-orangie .cf-torso, .fig-orangie .cf-arm, .fig-orangie .cf-legs, .fig-orangie .cf-shoes { background-color: #1a120c; }
+.fig-orangie .cf-helm { width: 30px; left: 21px; }
 .fig-orangie .cf-visor { background: #ff8a3d; width: 22px; left: 25px; }
-.fig-orangie .cf-torso { background: #1a2438; width: 34px; left: 19px; height: 36px; }
-.fig-orangie .cf-arm { background: #ff8a3d; }
-.fig-orangie .cf-legs { background: #6a6048; width: 26px; left: 23px; }
-.fig-orangie .cf-shoes { background: #2a2018; }
+.fig-orangie .cf-torso { width: 34px; left: 19px; background-image: repeating-linear-gradient(60deg, transparent, transparent 5px, rgba(255,138,61,0.4) 5px, rgba(255,138,61,0.4) 6px); }
+.fig-orangie .cf-web { background: repeating-linear-gradient(180deg, transparent, transparent 3px, rgba(255,138,61,0.6) 3px, rgba(255,138,61,0.6) 4px); }
+.fig-orangie .cf-legs { width: 26px; left: 23px; }
 .fig-cupsey { transform: scale(0.92); }
-.fig-cupsey .cf-helm { background: #1a1018; }
+.fig-cupsey .cf-helm, .fig-cupsey .cf-cowl, .fig-cupsey .cf-torso, .fig-cupsey .cf-arm, .fig-cupsey .cf-legs, .fig-cupsey .cf-shoes { background-color: #140810; }
 .fig-cupsey .cf-visor { background: #ff4da6; }
-.fig-cupsey .cf-torso { background: #ff4da6; height: 26px; top: 46px; }
-.fig-cupsey .cf-arm { background: #ff4da6; height: 26px; }
-.fig-cupsey .cf-legs { background: #1a1a1e; height: 22px; top: 72px; }
-.fig-cupsey .cf-shoes { background: #f0f0f0; top: 108px; }
-.fig-cupsey .cf-ear { display: block; width: 8px; height: 8px; border: 2px solid #e8c860; border-radius: 50%; left: 46px; top: 30px; background: transparent; }
+.fig-cupsey .cf-torso { background-image: repeating-linear-gradient(60deg, transparent, transparent 3px, rgba(255,77,166,0.4) 3px, rgba(255,77,166,0.4) 4px); }
+.fig-cupsey .cf-web { background: repeating-linear-gradient(180deg, transparent, transparent 3px, rgba(255,77,166,0.6) 3px, rgba(255,77,166,0.6) 4px); }
+.fig-cupsey .cf-ear { display: none; }
 
 .char-card b { letter-spacing: 0.16em; }
 .char-card span { color: var(--dim); font-size: 12px; }
@@ -274,6 +282,14 @@ button, .wallet-adapter-button { font-family: inherit; }
 .pad-zip { right: 90px; bottom: 88px; width: 58px; height: 58px; font-size: 13px; letter-spacing: 0.12em; background: rgba(40,24,10,0.75); }
 .pad-jump { right: 12px; bottom: 92px; width: 52px; height: 52px; font-size: 18px; }
 .pad-pause { right: 4px; bottom: 178px; width: 42px; height: 42px; font-size: 13px; }
+.pad-bin {
+  right: 168px; bottom: 10px; width: 64px; height: 64px;
+  font-size: 13px; letter-spacing: 0.1em; background: rgba(40,28,8,0.82);
+}
+.pad-climb {
+  right: 168px; bottom: 82px; width: 64px; height: 54px;
+  font-size: 11px; letter-spacing: 0.08em; background: rgba(8,28,32,0.82);
+}
 
 .wallet-adapter-button { background: #122028 !important; }
 

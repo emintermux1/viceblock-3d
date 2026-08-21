@@ -1,5 +1,5 @@
 import { Mesh, MeshBuilder, Quaternion, Scene, Vector3 } from "@babylonjs/core";
-import { facadeMat, flareTex, makeDecal, makeSign, mat, uniqueMat } from "./art";
+import { facadeMat, flareTex, makeDecal, makeSign, mat, uniqueMat, webSuitMat } from "./art";
 import { clamp } from "./constants";
 import type { CharacterId } from "./types";
 
@@ -603,28 +603,74 @@ function assemblePerson(scene: Scene, kit: Kit): Mesh {
 }
 
 export function makeHero(scene: Scene, id: CharacterId): Mesh {
-  if (id === "orangie") {
-    return assemblePerson(scene, {
-      name: "hero-orangie", skin: "#c4a070", torso: "#1a2438", torsoE: 0.04,
-      pelvis: "#ff8a3d", legs: "#1a2438", shoes: "#111114", hair: "#e07020",
-      hairStyle: "messy", sx: 1.24, sy: 0.95, neck: 0.2, glow: "#ff8a3d",
-      mask: true, lens: "#ff8a3d",
-    });
-  }
-  if (id === "cupsey") {
-    return assemblePerson(scene, {
-      name: "hero-cupsey", skin: "#f5dcc8", torso: "#1a1018", torsoE: 0.06,
-      pelvis: "#ff4da6", legs: "#1a1018", shoes: "#f0f0f0", hair: "#ff4da6",
-      hairStyle: "bun", sx: 0.88, sy: 0.9, neck: 0.12, glow: "#ff4da6",
-      mask: true, lens: "#ff4da6",
-    });
-  }
-  return assemblePerson(scene, {
-    name: "hero-ansem", skin: "#f0d4c0", torso: "#102028", torsoE: 0.08,
-    pelvis: "#0a1818", legs: "#102028", shoes: "#111114", hair: "#111114",
-    hairStyle: "beanie", sx: 0.92, sy: 1.0, neck: 0.13, glow: "#2ef2d0",
-    mask: true, lens: "#2ef2d0",
-  });
+  const spec = id === "orangie"
+    ? { name: "hero-orangie", base: "#1a120c", line: "#ff8a3d", lens: "#ff8a3d", sx: 1.22, sy: 0.96, hood: 1.12 }
+    : id === "cupsey"
+      ? { name: "hero-cupsey", base: "#140810", line: "#ff4da6", lens: "#ff4da6", sx: 0.86, sy: 0.9, hood: 0.92 }
+      : { name: "hero-ansem", base: "#071820", line: "#2ef2d0", lens: "#2ef2d0", sx: 0.92, sy: 1.0, hood: 1.0 };
+  return assembleWebHero(scene, spec, id);
+}
+
+function assembleWebHero(
+  scene: Scene,
+  spec: { name: string; base: string; line: string; lens: string; sx: number; sy: number; hood: number },
+  id: CharacterId,
+): Mesh {
+  const root = new Mesh(spec.name, scene);
+  const sx = spec.sx;
+  const sy = spec.sy;
+  const tw = 0.46 * sx;
+  const td = 0.28 * sx;
+  const th = 0.56 * sy;
+  const torsoY = 1.28 * sy;
+  const pelvisY = 0.9 * sy;
+  const hipY = 0.82 * sy;
+  const headY = 1.68 * sy;
+  const suit = webSuitMat(scene, id, spec.base, spec.line);
+  const dark = mat(scene, spec.base, 0.04);
+  const glow = mat(scene, spec.line, 0.85);
+
+  const pelvis = MeshBuilder.CreateBox("pelvis", { width: tw * 0.92, height: 0.22 * sy, depth: td }, scene);
+  pelvis.position.y = pelvisY;
+  pelvis.material = suit;
+  pelvis.parent = root;
+
+  const torso = MeshBuilder.CreateSphere("torso", { diameter: 1, segments: 10 }, scene);
+  torso.scaling.set(tw, th, td);
+  torso.position.y = torsoY;
+  torso.material = suit;
+  torso.parent = root;
+
+  box(scene, root, "ridge", tw * 0.18, th * 0.7, 0.04, 0, torsoY, td * 0.52, spec.line, 0.35);
+  box(scene, root, "ridgeL", tw * 0.08, th * 0.55, 0.03, -tw * 0.22, torsoY, td * 0.5, spec.line, 0.22);
+  box(scene, root, "ridgeR", tw * 0.08, th * 0.55, 0.03, tw * 0.22, torsoY, td * 0.5, spec.line, 0.22);
+
+  const hood = MeshBuilder.CreateSphere("hd", { diameter: 0.4 * spec.hood, segments: 10 }, scene);
+  hood.position.y = headY;
+  hood.scaling.set(1.05, 1.12, 1.08);
+  hood.material = dark;
+  hood.parent = root;
+  box(scene, root, "cowl", tw * 0.95, 0.16 * sy, td * 1.15, 0, headY - 0.22 * sy, -0.02, spec.base, 0.05);
+  box(scene, root, "visor", 0.3 * spec.hood, 0.075, 0.09, 0, headY + 0.01, 0.16 * spec.hood, spec.lens, 0.95);
+  box(scene, root, "lenscap", 0.32 * spec.hood, 0.03, 0.04, 0, headY + 0.07, 0.15 * spec.hood, spec.base, 0.08);
+
+  box(scene, root, "shootL", 0.1, 0.07, 0.12, -tw * 0.55, torsoY + 0.02, 0.1, "#0a0a0c", 0.15);
+  box(scene, root, "shootR", 0.1, 0.07, 0.12, tw * 0.55, torsoY + 0.02, 0.1, "#0a0a0c", 0.15);
+
+  const armH = 0.54 * sy;
+  const legH = 0.74 * sy;
+  const larm = limb(scene, root, "larm", -tw * 0.5 - 0.08, torsoY + th * 0.35, 0.135, armH, spec.base);
+  const rarm = limb(scene, root, "rarm", tw * 0.5 + 0.08, torsoY + th * 0.35, 0.135, armH, spec.base);
+  for (const a of larm.getChildMeshes()) a.material = suit;
+  for (const a of rarm.getChildMeshes()) a.material = suit;
+  const ll = limb(scene, root, "lleg", -0.14 * sx, hipY, 0.175, legH, spec.base);
+  const rl = limb(scene, root, "rleg", 0.14 * sx, hipY, 0.175, legH, spec.base);
+  for (const a of ll.getChildMeshes()) a.material = suit;
+  for (const a of rl.getChildMeshes()) a.material = suit;
+  box(scene, ll, "shoe", 0.18, 0.1, 0.3, 0, -legH - 0.02, 0.05, spec.base, 0.04);
+  box(scene, rl, "shoe", 0.18, 0.1, 0.3, 0, -legH - 0.02, 0.05, spec.base, 0.04);
+  void glow;
+  return root;
 }
 
 const PED_KITS: Omit<Kit, "name" | "sx" | "sy" | "neck">[] = [
@@ -651,6 +697,16 @@ export function makeCop(scene: Scene): Mesh {
     shoes: "#111114", hair: "#1a2438", hairStyle: "peak", sx: 1.04, sy: 1.02, neck: 0.15,
     vest: "#1a3a88", badge: true,
   });
+}
+
+export function tickCrawlPose(mesh: Mesh, t: number) {
+  const s = Math.sin(t * 7.2) * 0.35;
+  for (const ch of mesh.getChildMeshes(false)) {
+    if (ch.name === "larm") ch.rotation.x = -2.4 + s;
+    else if (ch.name === "rarm") ch.rotation.x = -2.2 - s;
+    else if (ch.name === "lleg") ch.rotation.x = 0.4 + s;
+    else if (ch.name === "rleg") ch.rotation.x = 0.5 - s;
+  }
 }
 
 export function tickSwingPose(mesh: Mesh, t: number, attached: boolean) {

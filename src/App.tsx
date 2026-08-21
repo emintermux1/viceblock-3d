@@ -107,7 +107,14 @@ function Shell() {
             <GameView input={inputRef.current} frozen={paused} muted={muted} character={character} onHud={onHud} gameRef={gameRef} />
           </div>
           <HUD hud={hud} onTapMusic={() => bootAudio()} />
-          <TouchControls input={inputRef.current} hidden={!touch || paused} onPause={() => setPaused(true)} />
+          <TouchControls
+            input={inputRef.current}
+            hidden={!touch || paused}
+            onPause={() => setPaused(true)}
+            nearCar={hud.nearCar}
+            inCar={hud.inCar}
+            canClimb={hud.canClimb}
+          />
           {paused && (
             <PauseMenu
               muted={muted}

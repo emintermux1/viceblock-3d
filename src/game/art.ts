@@ -28,6 +28,48 @@ export function uniqueMat(scene: Scene, hex: string, emissive = 0, spec = 0.15):
   return m;
 }
 
+export function webSuitMat(scene: Scene, id: string, base: string, line: string): StandardMaterial {
+  const key = "websuit-" + id + "-" + base + "-" + line;
+  let m = matCache.get(key);
+  if (m && m.getScene() === scene) return m;
+  const tex = new DynamicTexture("ws-" + id, { width: 256, height: 256 }, scene, false);
+  const ctx = tex.getContext();
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.strokeStyle = line;
+  ctx.globalAlpha = 0.82;
+  const step = id === "cupsey" ? 16 : id === "orangie" ? 28 : 22;
+  ctx.lineWidth = id === "orangie" ? 2.4 : 1.7;
+  for (let y = -step; y < 256 + step; y += step) {
+    ctx.beginPath();
+    for (let x = 0; x <= 256; x += step) {
+      const yy = y + ((Math.floor(x / step) % 2) * step * 0.5);
+      if (x === 0) ctx.moveTo(x, yy);
+      else ctx.lineTo(x, yy);
+    }
+    ctx.stroke();
+  }
+  for (let x = -step; x < 256 + step; x += step) {
+    ctx.beginPath();
+    for (let y = 0; y <= 256; y += step) {
+      const xx = x + ((Math.floor(y / step) % 2) * step * 0.5);
+      if (y === 0) ctx.moveTo(xx, y);
+      else ctx.lineTo(xx, y);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  tex.update();
+  m = new StandardMaterial(key, scene);
+  m.diffuseTexture = tex;
+  m.emissiveTexture = tex;
+  m.diffuseColor = Color3.FromHexString(base);
+  m.emissiveColor = Color3.FromHexString(line).scale(0.16);
+  m.specularColor = new Color3(0.18, 0.18, 0.18);
+  matCache.set(key, m);
+  return m;
+}
+
 export function shadeHex(hex: string, mul: number): string {
   const c = Color3.FromHexString(hex);
   const to = (v: number) => {
