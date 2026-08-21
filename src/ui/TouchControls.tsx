@@ -11,6 +11,8 @@ type Props = {
   canClimb?: boolean;
   nearDance?: boolean;
   inDance?: boolean;
+  nearSex?: boolean;
+  inSex?: boolean;
   enterVerb?: string;
 };
 
@@ -26,7 +28,7 @@ function hitOf(el: EventTarget | null): "stick" | "shoot" | "swing" | "zip" | "j
   return "none";
 }
 
-export function TouchControls({ input, hidden, onPause, nearCar, nearDoor, inCar, canClimb, nearDance, inDance, enterVerb }: Props) {
+export function TouchControls({ input, hidden, onPause, nearCar, nearDoor, inCar, canClimb, nearDance, inDance, nearSex, inSex, enterVerb }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [, setTick] = useState(0);
   const bump = () => setTick((n) => n + 1);
@@ -93,7 +95,7 @@ export function TouchControls({ input, hidden, onPause, nearCar, nearDoor, inCar
         {!inCar && <button type="button" className="pad-btn pad-zip" data-hit="zip" aria-label="Zip">ZIP</button>}
         {!inCar && <button type="button" className="pad-btn pad-swing" data-hit="swing" aria-label="Salin">SALIN</button>}
         {!inCar && <button type="button" className="pad-btn pad-shoot" data-hit="shoot" aria-label="Ates">ATEŞ</button>}
-        {(nearCar || inCar || nearDoor || nearDance || inDance) && (
+        {(nearCar || inCar || nearDoor || nearDance || inDance || nearSex || inSex) && (
           <button type="button" className="pad-btn pad-bin" data-hit="enter" aria-label={enterVerb || "Gir"}>
             {enterVerb || (inDance ? "ÇIK" : nearDance ? "DANS" : inCar ? "BİN" : nearDoor && !nearCar ? "GİR" : "BİN")}
           </button>

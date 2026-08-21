@@ -117,6 +117,8 @@ function Shell() {
             canClimb={hud.canClimb}
             nearDance={hud.nearDance}
             inDance={hud.inDance}
+            nearSex={hud.nearSex}
+            inSex={hud.inSex}
             enterVerb={hud.enterVerb}
           />
           {paused && (

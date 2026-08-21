@@ -104,6 +104,87 @@ export class ClubBass {
 
 export const clubBass = new ClubBass();
 
+export class ClubBed {
+  private osc: OscillatorNode | null = null;
+  private gain: GainNode | null = null;
+  private pulse: OscillatorNode | null = null;
+  private pulseGain: GainNode | null = null;
+  private moan: OscillatorNode | null = null;
+  private moanGain: GainNode | null = null;
+  muted = false;
+
+  ensure() {
+    gestureUnlock();
+    if (!sharedCtx || this.osc) return;
+    const dest = sharedCtx.destination;
+    const g = sharedCtx.createGain();
+    g.gain.value = 0;
+    const bed = sharedCtx.createOscillator();
+    bed.type = "triangle";
+    bed.frequency.value = 48;
+    const lp = sharedCtx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 180;
+    bed.connect(lp);
+    lp.connect(g);
+    g.connect(dest);
+    const pulse = sharedCtx.createOscillator();
+    pulse.type = "sine";
+    pulse.frequency.value = 2.35;
+    const pg = sharedCtx.createGain();
+    pg.gain.value = 0;
+    pulse.connect(pg);
+    pg.connect(g.gain);
+    const moan = sharedCtx.createOscillator();
+    moan.type = "sine";
+    moan.frequency.value = 220;
+    const mg = sharedCtx.createGain();
+    mg.gain.value = 0;
+    const bp = sharedCtx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 340;
+    bp.Q.value = 2.2;
+    moan.connect(bp);
+    bp.connect(mg);
+    mg.connect(dest);
+    bed.start();
+    pulse.start();
+    moan.start();
+    this.osc = bed;
+    this.gain = g;
+    this.pulse = pulse;
+    this.pulseGain = pg;
+    this.moan = moan;
+    this.moanGain = mg;
+  }
+
+  setLevel(v: number) {
+    this.ensure();
+    if (!this.gain || !this.pulseGain || !this.moanGain || this.muted) {
+      if (this.gain) this.gain.gain.value = 0;
+      if (this.moanGain) this.moanGain.gain.value = 0;
+      return;
+    }
+    const n = Math.max(0, Math.min(1, v));
+    this.gain.gain.value = n * 0.05;
+    this.pulseGain.gain.value = n * 0.035;
+    this.moanGain.gain.value = n * 0.028;
+    if (this.moan && sharedCtx) {
+      this.moan.frequency.setTargetAtTime(200 + Math.sin(sharedCtx.currentTime * 1.8) * 28, sharedCtx.currentTime, 0.08);
+    }
+  }
+
+  setMuted(m: boolean) {
+    this.muted = m;
+    if (m) {
+      if (this.gain) this.gain.gain.value = 0;
+      if (this.moanGain) this.moanGain.gain.value = 0;
+    }
+  }
+}
+
+export const clubBed = new ClubBed();
+
 export class Sfx {
   muted = false;
   private gun: HTMLAudioElement | null = null;
@@ -143,6 +224,7 @@ export class Sfx {
     this.muted = m;
     radio.setMuted(m);
     clubBass.setMuted(m);
+    clubBed.setMuted(m);
     if (m) {
       this.stopEngine();
       this.stopSiren();

@@ -5,7 +5,7 @@ import {
 import {
   asphaltMat, flareTex, makeDecal, makeSign, mat, roadMat, sidewalkMat, tickCityArt, uniqueMat, waterMat, woodDockMat,
 } from "./art";
-import { CLUB_SIZE, FENCE, INT, LOC } from "./constants";
+import { CLUB_BED, CLUB_SIZE, CLUB_VIP, FENCE, INT, LOC } from "./constants";
 import {
   makeAwning, makeBench, makeBillboard, makeBird, makeBoat, makeBollard, makeBuilding, makeCone, makeContainer,
   makeCrane, makeCrate, makeDumpster, makeFence, makeHydrant, makeLamp, makeNewsbox, makePalm,
@@ -860,6 +860,7 @@ function buildClubRoom(scene: Scene): AABB[] {
   innerDoor.position.set(cx, 1.3, cz - 7.85);
   innerDoor.material = mat(scene, "#ff4da6", 0.45);
   makeSign(scene, "ÇIK", cx, 2.85, cz - 7.7, 2.2, 0.35, "#12010c", "#ffc83d", 0);
+  placeVipNook(scene, cols);
   const pink = new PointLight("clpink", new Vector3(cx, 3.4, cz + 4.2), scene);
   pink.diffuse = new Color3(1, 0.22, 0.58);
   pink.intensity = 0.85;
@@ -893,4 +894,42 @@ function buildClubRoom(scene: Scene): AABB[] {
     cols.push(boxAABB(cx - 9, cz, 0.4, 16, 5.2, 0, 0));
   }
   return cols;
+}
+
+function placeVipNook(scene: Scene, cols: AABB[]) {
+  const bx = CLUB_BED.x;
+  const bz = CLUB_BED.z;
+  const vx = CLUB_VIP.x;
+  const vz = CLUB_VIP.z;
+  const curtain = mat(scene, "#4a1028", 0.08);
+  const left = MeshBuilder.CreateBox("vipc1", { width: 0.12, height: 3.2, depth: 2.8 }, scene);
+  left.position.set(vx + 2.6, 1.6, vz + 0.4);
+  left.material = curtain;
+  const right = MeshBuilder.CreateBox("vipc2", { width: 2.4, height: 3.2, depth: 0.12 }, scene);
+  right.position.set(vx + 0.4, 1.6, vz - 1.8);
+  right.material = curtain;
+  cols.push(boxAABB(vx + 2.6, vz + 0.4, 0.12, 2.8, 3.2, 0, 0));
+  cols.push(boxAABB(vx + 0.4, vz - 1.8, 2.4, 0.12, 3.2, 0, 0));
+  const bed = MeshBuilder.CreateBox("vipbed", { width: 2.1, height: 0.32, depth: 2.8 }, scene);
+  bed.position.set(bx, 0.28, bz);
+  bed.material = mat(scene, "#3a1024", 0.1);
+  const sheet = MeshBuilder.CreateBox("vipsheet", { width: 1.95, height: 0.06, depth: 2.55 }, scene);
+  sheet.position.set(bx, 0.46, bz);
+  sheet.material = mat(scene, "#6a2040", 0.12);
+  const pillow = MeshBuilder.CreateBox("vippill", { width: 0.7, height: 0.16, depth: 0.42 }, scene);
+  pillow.position.set(bx + 0.55, 0.58, bz);
+  pillow.material = mat(scene, "#f0d0d8", 0.08);
+  const door = MeshBuilder.CreateBox("vipdoor", { width: 0.14, height: 2.5, depth: 1.8 }, scene);
+  door.position.set(vx + 3.35, 1.25, vz - 0.2);
+  door.material = mat(scene, "#ff4da6", 0.55);
+  makeSign(scene, "ÖZEL", vx + 3.5, 2.85, vz - 0.2, 1.8, 0.38, "#12010c", "#ff4da6", Math.PI / 2);
+  makeSign(scene, "SEKS", bx, 2.35, bz + 1.55, 1.6, 0.32, "#12010c", "#ff4da6", Math.PI);
+  const lamp = new PointLight("viplamp", new Vector3(bx, 2.6, bz), scene);
+  lamp.diffuse = new Color3(1, 0.28, 0.62);
+  lamp.intensity = 0.95;
+  lamp.range = 8;
+  const wash = new PointLight("vipwash", new Vector3(bx - 0.8, 1.6, bz), scene);
+  wash.diffuse = new Color3(1, 0.18, 0.5);
+  wash.intensity = 0.4;
+  wash.range = 6;
 }

@@ -45,6 +45,8 @@ export type HudState = {
   clubHint: string;
   nearDance: boolean;
   inDance: boolean;
+  nearSex: boolean;
+  inSex: boolean;
   enterVerb: string;
 };
 
@@ -87,6 +89,8 @@ export const emptyHud = (): HudState => ({
   clubHint: "",
   nearDance: false,
   inDance: false,
+  nearSex: false,
+  inSex: false,
   enterVerb: "",
 });
 

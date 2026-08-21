@@ -102,6 +102,9 @@ export const INT = {
   club: { ox: 260, oz: 0 },
 };
 
+export const CLUB_BED = { x: 254.2, z: 4.6, yaw: Math.PI * 0.5 };
+export const CLUB_VIP = { x: 252.6, z: 3.4 };
+
 export const PD = { x: 52, z: -18 };
 export const FENCE = { x: 36, z: 70 };
 export const PD_OUT = { x: 52, z: -8 };
