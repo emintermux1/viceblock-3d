@@ -804,7 +804,7 @@ function buildInteriors(scene: Scene): CityData["interiors"] {
     },
     club: {
       id: "club", colliders: clubC,
-      spawnX: INT.club.ox, spawnZ: INT.club.oz - 5.6,
+      spawnX: INT.club.ox, spawnZ: INT.club.oz - 2.2,
       exitX: INT.club.ox, exitZ: INT.club.oz - 6.4,
       streetX: LOC.club.x, streetZ: LOC.club.z - 8.4,
       doorX: LOC.club.x, doorZ: LOC.club.z - 6.6,
@@ -856,6 +856,10 @@ function buildClubRoom(scene: Scene): AABB[] {
   dj.material = mat(scene, "#1a1018");
   cols.push(boxAABB(cx + 4.4, cz + 5.0, 2.4, 1.1, 1.05, 0, 0));
   makeSign(scene, "SALT GLOW", cx, 4.4, cz + 7.7, 7.2, 0.7, "#100810", "#ff4da6", Math.PI);
+  const innerDoor = MeshBuilder.CreateBox("clubout", { width: 2.4, height: 2.6, depth: 0.1 }, scene);
+  innerDoor.position.set(cx, 1.3, cz - 7.85);
+  innerDoor.material = mat(scene, "#ff4da6", 0.45);
+  makeSign(scene, "ÇIK", cx, 2.85, cz - 7.7, 2.2, 0.35, "#12010c", "#ffc83d", 0);
   const pink = new PointLight("clpink", new Vector3(cx, 3.4, cz + 4.2), scene);
   pink.diffuse = new Color3(1, 0.22, 0.58);
   pink.intensity = 0.85;

@@ -115,6 +115,9 @@ function Shell() {
             nearDoor={hud.nearDoor}
             inCar={hud.inCar}
             canClimb={hud.canClimb}
+            nearDance={hud.nearDance}
+            inDance={hud.inDance}
+            enterVerb={hud.enterVerb}
           />
           {paused && (
             <PauseMenu

@@ -43,6 +43,9 @@ export type HudState = {
   canClimb: boolean;
   clubPing: boolean;
   clubHint: string;
+  nearDance: boolean;
+  inDance: boolean;
+  enterVerb: string;
 };
 
 export const emptyHud = (): HudState => ({
@@ -82,6 +85,9 @@ export const emptyHud = (): HudState => ({
   canClimb: false,
   clubPing: false,
   clubHint: "",
+  nearDance: false,
+  inDance: false,
+  enterVerb: "",
 });
 
 export type AABB = {
