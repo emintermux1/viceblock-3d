@@ -17,7 +17,7 @@ This is an original dusk-vice web-slinger, not a Marvel / Sony title. The hero i
 - On-foot aim assist: while ATEŞ is held, look friction and a gentle magnet pull the shot toward the nearest cop, hostile, or car in a cone. Stronger on touch. Tracers go where assist aimed. A faint ring marks the target. No assist while swinging, zipping, or driving
 - Combat still web-stuns, yanks, and melee / air-takedown. Heat is local stars; swinging high drops it
 - Dusk South Docks lighting with warm sodium, teal water bounce, magenta neon, wet asphalt, fabric lattice suits, and metal guns
-- Authored street dressing: Nova City / South Docks plates, shop awnings, rooftop tanks, graffiti tags, traffic lights, steam, dust, birds, and flowing traffic. Pedestrians idle and walk. Landings settle the camera. Silk sags on the line.
+- Authored street dressing: VICEBLOCK / Nova City / South Docks plates and neon, shop awnings, window AC, rooftop tanks, drooping wires, painted tags, traffic lights, steam, dust, birds, and flowing traffic. Pedestrians idle and walk. Landings settle the camera. Silk sags on the line.
 - Desktop: mouse look without pointer lock. Phone: left stick, right look, SALIN / ZIP / ATEŞ, plus TIRMAN and BİN when they apply
 - Title → character select → South Docks
 - Radio + web / whoosh / impact if `public/audio` files are present (generated MP3s)

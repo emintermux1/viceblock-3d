@@ -7,9 +7,10 @@ import {
 } from "./art";
 import { FENCE, INT, LOC } from "./constants";
 import {
-  makeAwning, makeBench, makeBillboard, makeBird, makeBoat, makeBuilding, makeCone, makeContainer,
+  makeAwning, makeBench, makeBillboard, makeBird, makeBoat, makeBollard, makeBuilding, makeCone, makeContainer,
   makeCrane, makeCrate, makeDumpster, makeFence, makeHydrant, makeLamp, makeNewsbox, makePalm,
-  makePiling, makePlate, makeTrafficLight, makeTrash, makeWallTag,
+  makePallet, makePiling, makePlate, makePuddle, makeScooter, makeTrafficLight, makeTrash, makeWallTag,
+  makeWire,
   type BuildingStyle,
 } from "./meshes";
 import { addBuildingAnchors, type Anchor } from "./swing";
@@ -303,6 +304,7 @@ function placeBlocks(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
     colliders.push(boxAABB(b.x, b.z, b.w, b.d, b.h, yaw));
     addBuildingAnchors(anchors, b.x, b.z, b.w, b.d, b.h);
     if (b.x === 0 && b.z === -58) {
+      makeSign(scene, "VICEBLOCK", b.x, b.h + 3.1, b.z + b.d * 0.5 + 0.2, 9.2, 1.2, "#100810", "#ff4da6", Math.PI);
       makeSign(scene, "NOVA CITY", b.x, b.h + 1.7, b.z + b.d * 0.5 + 0.2, 8.6, 1.45, "#120808", "#ffc83d", Math.PI);
       makeSign(scene, "SOUTH DOCKS", b.x, b.h + 0.25, b.z + b.d * 0.5 + 0.2, 7.4, 0.82, "#081018", "#2ef2d0", Math.PI);
     }
@@ -415,7 +417,8 @@ function placeStrip(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
     makeSign(scene, name, x, 6.95, 46.2, name.length > 6 ? 6.3 : 4.7, 0.76, "#08080c", neon, Math.PI);
     makeAwning(scene, x, 3.15, 46.1, 8.4, neon === "#ff4d8d" ? "#c03050" : neon === "#2ef2d0" ? "#0a4a44" : "#c45a20", Math.PI);
   }
-  makeBillboard(scene, -8, 48, "NOVA CITY FM", "#ffc83d", Math.PI);
+  makeBillboard(scene, -8, 48, "VICEBLOCK", "#ff4da6", Math.PI);
+  makeSign(scene, "NOVA CITY FM", -8, 4.9, 48.2, 5.4, 0.48, "#100810", "#ffc83d", Math.PI);
   makeSign(scene, "SALT LINE", -44, 4.4, 46.15, 4.4, 0.42, "#100810", "#ff4d8d", Math.PI);
   makeSign(scene, "LATE RICE", 2, 4.35, 46.15, 4.6, 0.4, "#100c04", "#ffc83d", Math.PI);
   const neonM = new PointLight("neonm", new Vector3(-32, 6.2, 46), scene);
@@ -461,6 +464,11 @@ function placeDocks(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
   makeCrate(scene, 33, 77.4, -0.5);
   makeCone(scene, 30.4, 74.2);
   makeCone(scene, 31.2, 75);
+  makeBollard(scene, 34, 74.6);
+  makeBollard(scene, 50, 74.8);
+  makeBollard(scene, 58, 86);
+  makePallet(scene, 42.4, 75.2, -0.3);
+  makeCrate(scene, 42.6, 75.4, 0.2);
 
   makeFence(scene, -20, 73.4, 36, 0);
   makeFence(scene, 8, 73.4, 22, 0);
@@ -489,6 +497,12 @@ function placePalmsAndLamps(scene: Scene, anchors: Anchor[]) {
       pl.range = 18;
     }
   });
+  makeWire(scene, -56, 4.7, 30, -24, 4.7, 30);
+  makeWire(scene, -24, 4.7, 30, 16, 4.7, 30);
+  makeWire(scene, 16, 4.7, 30, 56, 4.7, 30);
+  makeWire(scene, -56, 4.7, 0, 16, 4.7, 0);
+  makeWire(scene, 14, 4.7, 20, -26, 4.7, 16);
+  makeWire(scene, -50, 4.7, 42, 14, 4.7, 20);
 }
 
 function placeSwingCables(scene: Scene, anchors: Anchor[]) {
@@ -569,7 +583,14 @@ function placeDressing(scene: Scene): { x: number; z: number }[] {
   makeWallTag(scene, "NOVA", -36.6, 2.2, 37.9, 2.6, 0.7, Math.PI, "#2ef2d0");
   makeWallTag(scene, "DOCKS", 9.8, 2.4, 37.9, 2.8, 0.65, Math.PI, "#ff8a3d");
   makeWallTag(scene, "SALT", -21.2, 1.8, 8.8, 2.2, 0.55, 0.2, "#ff4d8d");
+  makeWallTag(scene, "VICEBLOCK", -14.4, 2.5, 8.6, 3.4, 0.85, 0.15, "#ffc83d");
+  makeSign(scene, "VICEBLOCK", -22, 7.1, 8.15, 6.4, 0.72, "#100810", "#ff4da6", Math.PI);
   makeSign(scene, "SOUTH DOCKS", -18, 6.4, 8.2, 7.2, 0.85, "#081018", "#2ef2d0", Math.PI);
+  makeScooter(scene, -22.6, 7.1, 0.4);
+  makePallet(scene, -17.2, 10.4, 0.2);
+  makeCrate(scene, -17.0, 10.5, 0.5);
+  makePuddle(scene, -24.2, 7.4, 2.8, 1.6);
+  makePuddle(scene, 2.2, 33.6, 3.4, 1.8);
   makeSign(scene, "OPEN LATE", -36, 4.8, 2.2, 4.2, 0.55, "#120808", "#ff4d8d", Math.PI * 0.15);
   makeSign(scene, "CARGO 6", 40, 5.4, 69.2, 4.4, 0.48, "#1a1008", "#ffc83d", Math.PI);
   makeSign(scene, "PIER RADIO", 28, 8.4, 46.2, 5.2, 0.5, "#100818", "#b46aff", Math.PI);

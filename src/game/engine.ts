@@ -16,7 +16,7 @@ import {
 import type { Input } from "./input";
 import {
   findNamed, flareTex, lookDir, makeCar, makeCop, makeHero, makePed, makeSilk, mat, placeSilk,
-  setGunHolstered, tickCrawlPose, tickGunPose, tickSwingPose, tickWalk,
+  setGunHolstered, tickClimbPose, tickGunPose, tickSwingPose, tickWalk,
 } from "./meshes";
 import {
   nearestWall, pickAnchor, standY, stepAir, stepSwing, stepZip, unstickPlayer, type Anchor, type SwingRope,
@@ -1482,11 +1482,13 @@ export class ViceGame {
         }
         p.mesh.position.set(p.x, 0, p.z);
         p.mesh.rotation.y = p.yaw;
+        tickWalk(p.mesh, this.time, this.storeRobbed && this.interior === "mart");
         continue;
       }
       if (p.role === "fence") {
         p.mesh.position.set(p.x, 0, p.z);
         p.mesh.rotation.y = p.yaw;
+        tickWalk(p.mesh, this.time, false);
         continue;
       }
       if (p.state === "call") {
@@ -1547,7 +1549,7 @@ export class ViceGame {
       }
       p.mesh.position.set(p.x, 0, p.z);
       p.mesh.rotation.y = p.yaw;
-      tickWalk(p.mesh, this.time, p.state !== "sit" && p.role !== "group");
+      tickWalk(p.mesh, this.time, p.role !== "group" || p.state === "flee");
     }
   }
 
@@ -1741,7 +1743,9 @@ export class ViceGame {
   private updateCarsFx(_dt: number) {
     for (const c of this.cars) {
       const spd = Math.abs(c.speed);
-      const bob = spd > 1 ? Math.sin(this.time * 10 + c.x) * 0.04 * Math.min(1, spd / 12) : 0;
+      const bob = spd > 1
+        ? Math.sin(this.time * 10 + c.x) * 0.04 * Math.min(1, spd / 12)
+        : Math.sin(this.time * 1.7 + c.x) * 0.01;
       c.mesh.position.set(c.x, bob, c.z);
       c.mesh.rotation.y = c.yaw;
       c.mesh.rotation.x = spd > 1 ? -spd * 0.0035 + Math.sin(this.time * 9) * 0.012 : 0;
@@ -1803,7 +1807,10 @@ export class ViceGame {
     if (this.drive) {
       this.silk.setEnabled(false);
       this.aimOrb.setEnabled(false);
-    } else if (this.mode === "crawl") tickCrawlPose(this.playerMesh, this.time);
+    } else if (this.mode === "crawl") {
+      const climbing = this.input.climbHeld || this.input.moveY < -0.12;
+      tickClimbPose(this.playerMesh, this.time, climbing);
+    }
     else if (flying) tickSwingPose(this.playerMesh, this.time, this.mode === "swing" || this.mode === "zip");
     else {
       const moving = Math.hypot(this.player.vx, this.player.vz) > 0.45;

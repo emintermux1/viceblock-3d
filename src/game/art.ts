@@ -116,11 +116,12 @@ function hash(n: number): number {
   return x - Math.floor(x);
 }
 
-export function facadeMat(scene: Scene, hex: string, style: BuildingStyle, face: "front" | "side"): StandardMaterial {
-  const key = "fac-" + hex + "-" + style + "-" + face;
+export function facadeMat(scene: Scene, hex: string, style: BuildingStyle, face: "front" | "side", variant = 0): StandardMaterial {
+  const v = variant & 1;
+  const key = "fac-" + hex + "-" + style + "-" + face + "-" + v;
   let m = matCache.get(key);
   if (m && m.getScene() === scene) return m;
-  const tex = paintFacade(scene, hex, style, face);
+  const tex = paintFacade(scene, hex, style, face, v);
   const emit = style === "shop"
     ? new Color3(0.28, 0.22, 0.16)
     : style === "warehouse"
@@ -129,15 +130,15 @@ export function facadeMat(scene: Scene, hex: string, style: BuildingStyle, face:
   return texMat(scene, key, tex, emit, style === "warehouse" ? 0.04 : 0.1);
 }
 
-function paintFacade(scene: Scene, hex: string, style: BuildingStyle, face: "front" | "side"): DynamicTexture {
+function paintFacade(scene: Scene, hex: string, style: BuildingStyle, face: "front" | "side", variant: number): DynamicTexture {
   const tw = 256;
   const th = 512;
-  const tex = new DynamicTexture("ftx-" + hex + style + face + uid++, { width: tw, height: th }, scene, false);
+  const tex = new DynamicTexture("ftx-" + hex + style + face + variant + uid++, { width: tw, height: th }, scene, false);
   const ctx = tex.getContext() as CanvasRenderingContext2D;
-  const mortar = shadeHex(hex, 0.55);
+  const mortar = shadeHex(hex, variant ? 0.48 : 0.55);
   const brick = hex;
-  const brickHi = shadeHex(hex, 1.12);
-  const brickLo = shadeHex(hex, 0.82);
+  const brickHi = shadeHex(hex, variant ? 1.2 : 1.12);
+  const brickLo = shadeHex(hex, variant ? 0.74 : 0.82);
   ctx.fillStyle = mortar;
   ctx.fillRect(0, 0, tw, th);
 
@@ -148,6 +149,7 @@ function paintFacade(scene: Scene, hex: string, style: BuildingStyle, face: "fro
   } else {
     paintBrick(ctx, tw, th, brick, brickHi, brickLo, mortar);
   }
+  paintStains(ctx, tw, th, variant);
 
   if (style === "shop" || (style === "walkup" && face === "front")) {
     paintStorefront(ctx, tw, th, hex, style === "shop");
@@ -157,9 +159,9 @@ function paintFacade(scene: Scene, hex: string, style: BuildingStyle, face: "fro
     paintGroundBand(ctx, tw, th, shadeHex(hex, 0.7));
   }
 
-  if (style === "tower") paintTowerWindows(ctx, tw, th, face);
+  if (style === "tower") paintTowerWindows(ctx, tw, th, face, variant);
   else if (style === "warehouse") paintHighWindows(ctx, tw, th, face);
-  else paintWalkupWindows(ctx, tw, th, face, hex);
+  else paintWalkupWindows(ctx, tw, th, face, hex, variant);
 
   paintCornice(ctx, tw, th, shadeHex(hex, 0.45));
   if (face === "front" && style !== "warehouse") paintLedgeRows(ctx, tw, th);
@@ -246,32 +248,42 @@ function paintGroundBand(ctx: CanvasRenderingContext2D, tw: number, th: number, 
   ctx.fillRect(tw / 2 - 16, th - 58, 32, 50);
 }
 
-function paintWalkupWindows(ctx: CanvasRenderingContext2D, tw: number, th: number, face: "front" | "side", hex: string) {
+function paintStains(ctx: CanvasRenderingContext2D, tw: number, th: number, variant: number) {
+  if (!variant) return;
+  ctx.fillStyle = "rgba(18,10,8,0.28)";
+  ctx.fillRect(6, 64, 16, th - 180);
+  ctx.fillStyle = "rgba(80,42,28,0.2)";
+  ctx.fillRect(tw - 28, 48, 20, th * 0.38);
+  ctx.fillStyle = "rgba(10,8,8,0.18)";
+  for (let i = 0; i < 8; i++) ctx.fillRect((i * 37) % tw, 90 + i * 42, 28, 6);
+}
+
+function paintWalkupWindows(ctx: CanvasRenderingContext2D, tw: number, th: number, face: "front" | "side", hex: string, variant: number) {
   const cols = face === "front" ? 4 : 2;
   const gapX = tw / (cols + 1);
-  const startY = 36;
+  const startY = 36 + (variant ? 10 : 0);
   const endY = th - 140;
   let row = 0;
   for (let y = startY; y < endY; y += 48) {
     for (let c = 0; c < cols; c++) {
-      const x = gapX * (c + 1) - 14;
-      const lit = hash(x * 9 + y * 4 + hex.length + row) > 0.38;
+      const x = gapX * (c + 1) - 14 + (variant ? 6 : 0);
+      const lit = hash(x * 9 + y * 4 + hex.length + row + variant * 17) > 0.38;
       paintWindow(ctx, x, y, 28, 32, lit);
     }
     row += 1;
   }
 }
 
-function paintTowerWindows(ctx: CanvasRenderingContext2D, tw: number, th: number, face: "front" | "side") {
+function paintTowerWindows(ctx: CanvasRenderingContext2D, tw: number, th: number, face: "front" | "side", variant: number) {
   const cols = face === "front" ? 6 : 3;
   const gapX = tw / (cols + 0.4);
   for (let y = 28; y < th - 40; y += 26) {
     for (let c = 0; c < cols; c++) {
-      const x = 12 + c * gapX;
-      const lit = hash(x * 3 + y * 11) > 0.45;
+      const x = 10 + c * gapX + (variant ? 4 : 0);
+      const lit = hash(x * 3 + y * 11 + variant * 19) > 0.45;
       ctx.fillStyle = "#0c1018";
       ctx.fillRect(x - 1, y - 1, 16, 18);
-      ctx.fillStyle = lit ? "#e8c86a" : "#15202c";
+      ctx.fillStyle = lit ? (variant ? "#f0b45a" : "#e8c86a") : "#15202c";
       ctx.fillRect(x, y, 14, 16);
     }
   }
@@ -496,6 +508,45 @@ export function makeSign(scene: Scene, text: string, x: number, y: number, z: nu
   m.diffuseTexture = tex;
   m.emissiveTexture = tex;
   m.emissiveColor = new Color3(0.7, 0.6, 0.45);
+  m.specularColor = new Color3(0, 0, 0);
+  m.backFaceCulling = false;
+  plane.material = m;
+  return plane;
+}
+
+export function makeGraffiti(scene: Scene, text: string, x: number, y: number, z: number, w: number, h: number, yaw: number, fg: string): Mesh {
+  const plane = MeshBuilder.CreatePlane("tag-" + text, { width: w, height: h }, scene);
+  plane.position.set(x, y, z);
+  plane.rotation.y = yaw;
+  const tw = 256;
+  const th = 128;
+  const tex = new DynamicTexture("gfx-" + text + uid++, { width: tw, height: th }, scene, false);
+  const ctx = tex.getContext() as CanvasRenderingContext2D;
+  ctx.clearRect(0, 0, tw, th);
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = fg;
+  for (let i = 0; i < 18; i++) {
+    const n = hash(i * 17 + text.length * 9);
+    ctx.beginPath();
+    ctx.ellipse(20 + n * 210, 20 + ((i * 29) % 90), 8 + n * 18, 4 + n * 10, n * 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = shadeHex(fg, 0.45);
+  ctx.lineWidth = 8;
+  ctx.font = "italic 700 52px Impact, Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.strokeText(text, 128, 68);
+  ctx.fillStyle = fg;
+  ctx.fillText(text, 128, 68);
+  tex.hasAlpha = true;
+  tex.update();
+  const m = new StandardMaterial("gm-" + text + uid, scene);
+  m.diffuseTexture = tex;
+  m.emissiveTexture = tex;
+  m.emissiveColor = new Color3(0.35, 0.32, 0.22);
+  m.opacityTexture = tex;
   m.specularColor = new Color3(0, 0, 0);
   m.backFaceCulling = false;
   plane.material = m;
