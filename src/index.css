@@ -180,6 +180,11 @@ button, .wallet-adapter-button { font-family: inherit; }
   margin-top: 6px;
   letter-spacing: 0.18em; font-size: 10px; color: var(--gold);
   text-shadow: 0 2px 8px #000;
+  animation: heatPulse 1.1s ease-in-out infinite;
+}
+@keyframes heatPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
 }
 .hud-radio-chip {
   pointer-events: auto; margin-top: 8px; border: 1px solid #3a4a40;
@@ -189,7 +194,11 @@ button, .wallet-adapter-button { font-family: inherit; }
 .hud-radio-chip.tap { color: var(--gold); }
 .hud-stars { margin-top: 6px; }
 .star { color: #3a3a38; font-size: 18px; margin-left: 2px; }
-.star.on { color: var(--gold); text-shadow: 0 0 8px rgba(255,200,61,0.6); }
+.star.on { color: var(--gold); text-shadow: 0 0 10px rgba(255,200,61,0.85); animation: starOn 1.4s ease-in-out infinite; }
+@keyframes starOn {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.35); }
+}
 .hud-bars {
   width: 100%; height: 14px;
   display: flex; align-items: center; gap: 6px;
