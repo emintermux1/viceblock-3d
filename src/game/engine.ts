@@ -55,6 +55,7 @@ export class ViceGame {
   private rope: SwingRope | null = null;
   private zipTo: Anchor | null = null;
   private crawlN: { nx: number; nz: number; maxY: number } | null = null;
+  private bumpedWall = false;
   private silk!: Mesh;
   private aimOrb!: Mesh;
   private aim: Anchor | null = null;
@@ -503,6 +504,7 @@ export class ViceGame {
     p.vx = vx;
     p.vz = vz;
     p.vy = 0;
+    this.bumpedWall = false;
     const stuck = unstickPlayer(p, this.city.colliders);
     if (stuck === "roof") p.y = standY(p.x, p.z, this.city.colliders);
     const floor = standY(p.x, p.z, this.city.colliders);
@@ -524,8 +526,11 @@ export class ViceGame {
         this.mode = "air";
       }
     } else {
-      if (!this.blocked(nx, p.z, PLAYER_R) && this.walkable(nx, p.z)) p.x = nx;
-      if (!this.blocked(p.x, nz, PLAYER_R) && this.walkable(p.x, nz)) p.z = nz;
+      const hitX = this.blocked(nx, p.z, PLAYER_R);
+      const hitZ = this.blocked(p.x, nz, PLAYER_R);
+      this.bumpedWall = (hitX || hitZ) && Math.hypot(this.input.moveX, this.input.moveY) > 0.15;
+      if (!hitX && this.walkable(nx, p.z)) p.x = nx;
+      if (!hitZ && this.walkable(p.x, nz)) p.z = nz;
       p.y = 0;
       p.grounded = true;
       if (p.z > this.city.waterZ && !pointInAABB(p.x, p.z, this.city.pier, 0.2)) {
@@ -590,18 +595,20 @@ export class ViceGame {
 
   private tryStartClimb(): boolean {
     const p = this.player;
-    const w = nearestWall(p.x, Math.max(0.35, p.y + 0.4), p.z, this.city.colliders, 1.85);
+    const reach = this.input.climbHeld || this.bumpedWall ? 2.8 : 1.85;
+    const w = nearestWall(p.x, Math.max(0.2, p.y + 0.35), p.z, this.city.colliders, reach);
     if (!w) return false;
     const fwd = lookDir(this.camYaw, 0);
     const right = new Vector3(fwd.z, 0, -fwd.x);
     const mx = fwd.x * -this.input.moveY + right.x * this.input.moveX;
     const mz = fwd.z * -this.input.moveY + right.z * this.input.moveX;
     const into = -mx * w.nx - mz * w.nz;
-    const blockedInto = this.blocked(p.x - w.nx * 0.55, p.z - w.nz * 0.55, PLAYER_R);
-    if (!this.input.climbHeld && into < 0.18 && !blockedInto) return false;
-    if (!this.input.climbHeld && into < 0.18 && Math.hypot(this.input.moveX, this.input.moveY) < 0.2) return false;
-    this.stickWall(w);
-    return true;
+    if (this.input.climbHeld || this.bumpedWall || into > 0.12) {
+      this.stickWall(w);
+      this.bumpedWall = false;
+      return true;
+    }
+    return false;
   }
 
   private maybeCrawl() {

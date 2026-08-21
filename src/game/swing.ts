@@ -228,8 +228,8 @@ export function nearestWall(
 ): WallHit | null {
   let best: WallHit | null = null;
   for (const b of cols) {
-    if (b.maxY < 2.2) continue;
-    if (y < 0.15 || y > b.maxY + 0.25) continue;
+    if (b.maxY < 1.6) continue;
+    if (y < 0 || y > b.maxY + 0.35) continue;
     const faces: { d: number; nx: number; nz: number; px: number; pz: number }[] = [
       { d: Math.abs(x - b.maxX), nx: 1, nz: 0, px: b.maxX, pz: clamp(z, b.minZ, b.maxZ) },
       { d: Math.abs(x - b.minX), nx: -1, nz: 0, px: b.minX, pz: clamp(z, b.minZ, b.maxZ) },
