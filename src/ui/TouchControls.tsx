@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { Input } from "../game/input";
 
+type Hit =
+  | "stick" | "shoot" | "swing" | "zip" | "jump" | "enter" | "climb" | "look" | "pause"
+  | "yat" | "sakso" | "seks" | "none";
+
 type Props = {
   input: Input;
   hidden?: boolean;
@@ -13,25 +17,41 @@ type Props = {
   inDance?: boolean;
   nearSex?: boolean;
   inSex?: boolean;
+  sexActs?: boolean;
+  sexKind?: string;
   enterVerb?: string;
 };
 
-function hitOf(el: EventTarget | null): "stick" | "shoot" | "swing" | "zip" | "jump" | "enter" | "climb" | "look" | "pause" | "none" {
+function hitOf(el: EventTarget | null): Hit {
   const node = el as HTMLElement | null;
   const kind = node?.closest?.("[data-hit]")?.getAttribute("data-hit");
-  if (
-    kind === "stick" || kind === "shoot" || kind === "swing" || kind === "zip" ||
-    kind === "jump" || kind === "enter" || kind === "climb" || kind === "look" || kind === "pause"
-  ) {
-    return kind;
+  switch (kind) {
+    case "stick":
+    case "shoot":
+    case "swing":
+    case "zip":
+    case "jump":
+    case "enter":
+    case "climb":
+    case "look":
+    case "pause":
+    case "yat":
+    case "sakso":
+    case "seks":
+      return kind;
+    default:
+      return "none";
   }
-  return "none";
 }
 
-export function TouchControls({ input, hidden, onPause, nearCar, nearDoor, inCar, canClimb, nearDance, inDance, nearSex, inSex, enterVerb }: Props) {
+export function TouchControls({
+  input, hidden, onPause, nearCar, nearDoor, inCar, canClimb, nearDance, inDance,
+  nearSex, inSex, sexActs, sexKind, enterVerb,
+}: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [, setTick] = useState(0);
   const bump = () => setTick((n) => n + 1);
+  const showActs = !!(sexActs || nearSex || inSex) && !inCar;
 
   useEffect(() => {
     const root = rootRef.current;
@@ -39,6 +59,13 @@ export function TouchControls({ input, hidden, onPause, nearCar, nearDoor, inCar
     const down = (e: PointerEvent) => {
       const hit = hitOf(e.target);
       if (hit === "pause") { e.preventDefault(); onPause(); return; }
+      if (hit === "yat" || hit === "sakso" || hit === "seks") {
+        e.preventDefault();
+        e.stopPropagation();
+        input.queueAct(hit);
+        bump();
+        return;
+      }
       if (hit === "shoot" || hit === "swing" || hit === "zip" || hit === "jump" || hit === "enter" || hit === "climb") {
         e.preventDefault();
         input.onPointerDown(e, hit);
@@ -101,7 +128,14 @@ export function TouchControls({ input, hidden, onPause, nearCar, nearDoor, inCar
           </button>
         )}
         {canClimb && !inCar && (
-          <button type="button" className="pad-btn pad-climb" data-hit="climb" aria-label="Tirman">TIRMAN</button>
+          <button type="button" className={"pad-btn pad-climb" + (showActs ? " up" : "")} data-hit="climb" aria-label="Tirman">TIRMAN</button>
+        )}
+        {showActs && (
+          <div className="pad-sex-col">
+            <button type="button" className={"pad-btn pad-sex" + (sexKind === "yat" ? " on" : "")} data-hit="yat" aria-label="Yat">YAT</button>
+            <button type="button" className={"pad-btn pad-sex pad-sakso" + (sexKind === "sakso" ? " on" : "")} data-hit="sakso" aria-label="Sakso">SAKSO</button>
+            <button type="button" className={"pad-btn pad-sex" + (sexKind === "seks" ? " on" : "")} data-hit="seks" aria-label="Seks">SEKS</button>
+          </div>
         )}
       </div>
     </div>

@@ -1,14 +1,31 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type PointerEvent } from "react";
 import type { HudState } from "../game/types";
 import { LOC } from "../game/constants";
+
+type SexAct = "yat" | "sakso" | "seks";
 
 type Props = {
   hud: HudState;
   onTapMusic?: () => void;
-  onSexAct?: (kind: "yat" | "sakso" | "seks") => void;
 };
 
-export function HUD({ hud, onTapMusic, onSexAct }: Props) {
+export function SexActBar({ visible, kind, onPick }: { visible: boolean; kind: string; onPick?: (k: SexAct) => void }) {
+  if (!visible) return null;
+  const tap = (act: SexAct) => (e: PointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onPick?.(act);
+  };
+  return (
+    <div className="sex-act-bar" role="group" aria-label="VIP acts">
+      <button type="button" className={"sex-act-btn" + (kind === "yat" ? " on" : "")} onPointerDown={tap("yat")}>YAT</button>
+      <button type="button" className={"sex-act-btn sakso" + (kind === "sakso" ? " on" : "")} onPointerDown={tap("sakso")}>SAKSO</button>
+      <button type="button" className={"sex-act-btn" + (kind === "seks" ? " on" : "")} onPointerDown={tap("seks")}>SEKS</button>
+    </div>
+  );
+}
+
+export function HUD({ hud, onTapMusic }: Props) {
   const live = hud.radioLive;
   return (
     <div className="hud" aria-hidden>
@@ -50,13 +67,6 @@ export function HUD({ hud, onTapMusic, onSexAct }: Props) {
         <div className="hud-sex-talk">
           <b>{hud.sexTalk}</b>
           <i>{hud.sexTalkEn}</i>
-        </div>
-      ) : null}
-      {hud.sexActs ? (
-        <div className="hud-sex-acts">
-          <button type="button" className={hud.sexKind === "yat" ? "on" : ""} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onSexAct?.("yat"); }}>1 YAT</button>
-          <button type="button" className={hud.sexKind === "sakso" ? "on" : ""} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onSexAct?.("sakso"); }}>2 SAKSO</button>
-          <button type="button" className={hud.sexKind === "seks" ? "on" : ""} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onSexAct?.("seks"); }}>3 SEKS</button>
         </div>
       ) : null}
       {hud.prompt ? <div className="hud-prompt">{hud.prompt}</div> : null}
