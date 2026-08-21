@@ -19,6 +19,7 @@ export class Input {
   surrenderPressed = false;
   talkPressed = false;
   swingHeld = false;
+  salinHeld = false;
   zipHeld = false;
   zipPressed = false;
   climbHeld = false;
@@ -185,6 +186,7 @@ export class Input {
     this.sprint = this.down("shift") || this.sprintHeld;
     this.jumpHeld = this.down("space") || this.jumpTouch;
     this.enterHeld = this.enterTouch || this.down("f");
+    this.salinHeld = this.swingTouch;
     this.swingHeld = this.swingTouch || this.down("f");
     this.climbHeld = this.climbTouch || this.down("c");
     this.zipHeld = this.down("e") || this.zipTouch;

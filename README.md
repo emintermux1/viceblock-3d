@@ -12,7 +12,7 @@ This is an original dusk-vice web-slinger, not a Marvel / Sony title. The hero i
 - Wall climb: approach a facade and hold toward it or C / TIRMAN, climb up, vault onto the roof
 - Street lamps, cables, crane, and building ledges as attach points
 - Short guest loop: first line → dock crane → stun three → lose heat high → free roam
-- Cars work again: near a car, F / BİN to get in and drive. BİN is a prompt, not a permanent chrome letter
+- Cars: near a car, tap F or tap the BİN prompt once to sit and drive. No hold, no hotwire charge. Tap F / BİN again to get out. Hold F / SALIN still slings when you are not in enter range. BİN is a prompt, not a permanent chrome letter
 - Combat is a handheld compact SMG in the right hand: ATEŞ / click / Control plays muzzle flash, recoil, tracer, impact sparks, and a gunshot. Wrist shooters stay as slinger flavor. The gun holsters while swinging, zipping, climbing, or driving
 - Combat still web-stuns, yanks, and melee / air-takedown. Heat is local stars; swinging high drops it
 - Dusk South Docks lighting with warm sun, cool rim, bounce, wet asphalt, fabric lattice suits, and metal guns

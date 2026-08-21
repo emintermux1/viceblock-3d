@@ -75,12 +75,12 @@ export const SAVE_KEY = "viceblock3d-line-v2";
 export const CRANE_GOAL = { x: 58, z: 80, y: 16 };
 
 export const CAR_SPEC: Record<"hatch" | "sedan" | "muscle" | "cop", {
-  mass: number; torque: number; top: number; brake: number; steer: number; traction: number; drift: number; hotwire: number;
+  mass: number; torque: number; top: number; brake: number; steer: number; traction: number; drift: number;
 }> = {
-  hatch: { mass: 0.82, torque: 19, top: 18, brake: 27, steer: 2.15, traction: 0.86, drift: 0.34, hotwire: 0 },
-  sedan: { mass: 1.0, torque: 16, top: 21, brake: 24, steer: 1.7, traction: 1.0, drift: 0.2, hotwire: 1.2 },
-  muscle: { mass: 1.28, torque: 23, top: 26, brake: 21, steer: 1.35, traction: 0.72, drift: 0.56, hotwire: 2.2 },
-  cop: { mass: 1.16, torque: 19, top: 23, brake: 28, steer: 1.55, traction: 1.18, drift: 0.12, hotwire: 1.6 },
+  hatch: { mass: 0.82, torque: 19, top: 18, brake: 27, steer: 2.15, traction: 0.86, drift: 0.34 },
+  sedan: { mass: 1.0, torque: 16, top: 21, brake: 24, steer: 1.7, traction: 1.0, drift: 0.2 },
+  muscle: { mass: 1.28, torque: 23, top: 26, brake: 21, steer: 1.35, traction: 0.72, drift: 0.56 },
+  cop: { mass: 1.16, torque: 19, top: 23, brake: 28, steer: 1.55, traction: 1.18, drift: 0.12 },
 };
 
 export const WITNESS_R = 18;

@@ -99,7 +99,6 @@ export class ViceGame {
   private flare!: ReturnType<typeof flareTex>;
   private canvas: HTMLCanvasElement;
   interior: InteriorId = "street";
-  private hotwire: { car: Car; t: number } | null = null;
   searching = false;
   searchX = 0;
   searchZ = 0;
@@ -308,7 +307,6 @@ export class ViceGame {
       }
     }
 
-    this.tickHotwire(dt);
     if (this.interior === "jail") {
       if (this.input.enterPressed && this.enterLock <= 0) this.tryEnterExit();
       this.tickJail(dt);
@@ -359,7 +357,7 @@ export class ViceGame {
 
     const nearCar = this.nearestCar(3.2);
     const streetBin = !!nearCar && this.mode === "ground" && p.y < 1.35;
-    if (streetBin && this.enterLock <= 0 && (ins.enterPressed || ins.enterHeld)) {
+    if (streetBin && this.enterLock <= 0 && ins.enterPressed) {
       this.tryEnterExit();
       if (this.drive) return;
     }
@@ -395,8 +393,10 @@ export class ViceGame {
       return;
     }
 
-    const wantSwing = !streetBin && (ins.swingHeld || (ins.jumpHeld && this.mode !== "ground"));
-    if (ins.zipPressed && this.aim && !streetBin) {
+    const wantSwing = ins.salinHeld
+      || (!streetBin && ins.swingHeld)
+      || (ins.jumpHeld && this.mode !== "ground");
+    if (ins.zipPressed && this.aim) {
       this.zipTo = { ...this.aim };
       this.mode = "zip";
       this.rope = {
@@ -899,10 +899,7 @@ export class ViceGame {
       if (d < bestD) { bestD = d; best = c; }
     }
     if (best && this.interior === "street") {
-      if (this.hotwire && this.hotwire.car === best) return;
-      const need = CAR_SPEC[best.kind].hotwire;
-      if (need <= 0) this.enterCar(best);
-      else this.hotwire = { car: best, t: 0 };
+      this.enterCar(best);
       return;
     }
     if (this.interior === "street") {
@@ -910,22 +907,6 @@ export class ViceGame {
       const gar = this.city.interiors.garage;
       if (dist2(this.player.x, this.player.z, mart.doorX, mart.doorZ) < 2.6) this.enterInterior("mart");
       else if (dist2(this.player.x, this.player.z, gar.doorX, gar.doorZ) < 2.8) this.enterInterior("garage");
-    }
-  }
-
-  private tickHotwire(dt: number) {
-    if (!this.hotwire) return;
-    const hw = this.hotwire;
-    if (!this.input.enterHeld || dist2(this.player.x, this.player.z, hw.car.x, hw.car.z) > 3.1) {
-      this.hotwire = null;
-      return;
-    }
-    hw.t += dt;
-    const need = CAR_SPEC[hw.car.kind].hotwire;
-    this.prompt = "HOTWIRE  " + Math.max(0, Math.ceil((need - hw.t) * 10) / 10);
-    if (hw.t >= need) {
-      this.enterCar(hw.car);
-      this.hotwire = null;
     }
   }
 
@@ -1790,8 +1771,7 @@ export class ViceGame {
     }
     if (this.drive) this.prompt = "F / BİN  İN";
     else if (nearCar && this.mode === "ground" && this.player.y < 1.35) {
-      const need = CAR_SPEC[nearCar.kind].hotwire;
-      this.prompt = need > 0 ? "HOLD F  BİN" : "F  BİN";
+      this.prompt = "F / BİN";
     } else if (this.mode === "crawl") this.prompt = "HOLD C  TIRMAN    VAULT THE LEDGE";
     else if (canClimb && this.mode === "ground") this.prompt = this.prompt || "HOLD C  TIRMAN";
   }

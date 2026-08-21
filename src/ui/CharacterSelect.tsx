@@ -22,7 +22,7 @@ export function CharacterSelect({ onPick }: Props) {
             );
           })}
         </div>
-        <p className="select-hint">Phone: left stick · right look · SALIN / ZIP / ATEŞ · TIRMAN · BİN. Desktop: WASD · mouse look · hold F SALIN · E ZIP · C TIRMAN · click ATEŞ · F BİN near a car · Space jump</p>
+        <p className="select-hint">Phone: left stick · right look · SALIN / ZIP / ATEŞ · TIRMAN · tap BİN. Desktop: WASD · mouse look · hold F SALIN · E ZIP · C TIRMAN · click ATEŞ · tap F BİN near a car · Space jump</p>
       </div>
     </div>
   );
