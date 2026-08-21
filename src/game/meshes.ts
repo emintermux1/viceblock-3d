@@ -1132,6 +1132,33 @@ export function tickSitPose(mesh: Mesh, t: number) {
   }
 }
 
+export function tickSexPlayerPose(mesh: Mesh, t: number) {
+  const thrust = Math.sin(t * 9.2);
+  mesh.rotation.x = 1.18 + thrust * 0.06;
+  mesh.rotation.z = 0;
+  mesh.position.y = 0.62 + Math.abs(thrust) * 0.03;
+  for (const ch of mesh.getChildMeshes(false)) {
+    if (ch.name === "lleg") { ch.rotation.x = 1.05; ch.rotation.z = -0.28; }
+    else if (ch.name === "rleg") { ch.rotation.x = 1.02; ch.rotation.z = 0.28; }
+    else if (ch.name === "larm") { ch.rotation.x = -0.55; ch.rotation.z = -0.35; }
+    else if (ch.name === "rarm") { ch.rotation.x = -0.48 + thrust * 0.12; ch.rotation.z = 0.32; }
+  }
+}
+
+export function tickSexPartnerPose(mesh: Mesh, t: number) {
+  const thrust = Math.sin(t * 9.2);
+  const sway = Math.sin(t * 4.6) * 0.08;
+  mesh.rotation.x = 0.42 + thrust * 0.18;
+  mesh.rotation.z = sway;
+  mesh.position.y = 0.92 + thrust * 0.16;
+  for (const ch of mesh.getChildMeshes(false)) {
+    if (ch.name === "lleg") { ch.rotation.x = 0.85 + thrust * 0.2; ch.rotation.z = -0.42; }
+    else if (ch.name === "rleg") { ch.rotation.x = 0.82 + thrust * 0.2; ch.rotation.z = 0.42; }
+    else if (ch.name === "larm") { ch.rotation.x = -1.55; ch.rotation.z = -0.55; }
+    else if (ch.name === "rarm") { ch.rotation.x = -1.35; ch.rotation.z = 0.5; }
+  }
+}
+
 export function tickLapDancePose(mesh: Mesh, t: number) {
   const sway = Math.sin(t * 4.2) * 0.38;
   const hip = Math.sin(t * 8.4) * 0.28;

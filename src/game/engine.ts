@@ -3,11 +3,11 @@ import {
   StandardMaterial, Vector3,
 } from "@babylonjs/core";
 import { ASSIST, aimAngles, angError, lookFriction, magnetBlend, scoreAssist, type AssistHit } from "./aim";
-import { clubBass, gestureUnlock, radio, sharedSfx } from "./audio";
+import { clubBass, clubBed, gestureUnlock, radio, sharedSfx } from "./audio";
 import { buildCity, tickCityArt, type CityData } from "./city";
 import { blockedAt, centerInside, circleHitsAABB, landFloor, resolveCapsule, slideMove, unstickCircle } from "./collide";
 import {
-  ARREST_R, BAIL, CALL_T, CAR_FRICTION, CAR_HP, CAR_REV, CAR_SPEC, CHAR, CLUB_SIZE, COP_DMG,
+  ARREST_R, BAIL, CALL_T, CAR_FRICTION, CAR_HP, CAR_REV, CAR_SPEC, CHAR, CLUB_BED, CLUB_SIZE, CLUB_VIP, COP_DMG,
   COP_FOOT, COP_SHOT_CD, CRANE_GOAL, FENCE, FIRE_CD, GRAVITY, GUN_DMG, GUN_RANGE, INT, JAIL_WAIT,
   JUMP_VEL, LOC, MAG, MELEE_CD, MELEE_DMG, MELEE_RANGE, PD, PD_OUT, PLAYER_R,
   REGEN_DELAY, REGEN_RATE, RELOAD_T, REPAIR_COST, RESERVE, SAVE_KEY, SEARCH_R0,
@@ -17,7 +17,7 @@ import {
 import type { Input } from "./input";
 import {
   findNamed, flareTex, lookDir, makeBouncer, makeCar, makeCop, makeDancer, makeHero, makePed, makeSilk, makeWoman, mat, placeSilk,
-  setGunHolstered, tickClimbPose, tickDancePose, tickDownPose, tickGunPose, tickLapDancePose, tickSitPose, tickSwingPose, tickWalk,
+  setGunHolstered, tickClimbPose, tickDancePose, tickDownPose, tickGunPose, tickLapDancePose, tickSexPartnerPose, tickSexPlayerPose, tickSitPose, tickSwingPose, tickWalk,
 } from "./meshes";
 import {
   nearestWall, pickAnchor, standY, stepAir, stepSwing, stepZip, type Anchor, type SwingRope,
@@ -32,7 +32,7 @@ type Car = {
   wrecked: boolean; exploding: boolean; boomT: number; occupied: boolean; special: string;
   smoke: ParticleSystem | null; stolen: boolean; flow: boolean; flowAxis: "x" | "z"; flowDir: number;
 };
-type PedRole = "wander" | "group" | "sit" | "cross" | "clerk" | "fence" | "dancer" | "hostess" | "bouncer" | "nightlife";
+type PedRole = "wander" | "group" | "sit" | "cross" | "clerk" | "fence" | "dancer" | "hostess" | "bouncer" | "nightlife" | "vip";
 type Ped = {
   mesh: Mesh; x: number; z: number; yaw: number; hp: number; state: PedState;
   tx: number; tz: number; downT: number; color: string; role: PedRole; callT: number; waitT: number;
@@ -65,6 +65,7 @@ export class ViceGame {
   private clubPing!: Mesh;
   private danceWith: Ped | null = null;
   private danceT = 0;
+  private sexWith: Ped | null = null;
   private silk!: Mesh;
   private aimOrb!: Mesh;
   private assistMark!: Mesh;
@@ -196,6 +197,7 @@ export class ViceGame {
     sharedSfx.stopEngine();
     sharedSfx.stopSiren();
     clubBass.setLevel(0);
+    clubBed.setLevel(0);
     this.engine.stopRenderLoop();
     this.scene.dispose();
     this.engine.dispose();
@@ -382,6 +384,13 @@ export class ViceGame {
         color: "#ff4da6", role: "hostess", callT: 0, waitT: 0,
       });
     }
+    const vip = makeDancer(this.scene, 44);
+    vip.position.set(CLUB_BED.x + 0.7, 0, CLUB_BED.z);
+    this.peds.push({
+      mesh: vip, x: CLUB_BED.x + 0.7, z: CLUB_BED.z, yaw: CLUB_BED.yaw + Math.PI, hp: 40,
+      state: "wander", tx: CLUB_BED.x + 0.7, tz: CLUB_BED.z, downT: 0,
+      color: "#ff4da6", role: "vip", callT: 0, waitT: 0,
+    });
   }
 
   private tick() {
@@ -460,6 +469,10 @@ export class ViceGame {
     const p = this.player;
     const ins = this.input;
 
+    if (this.sexWith) {
+      this.stepSex(dt);
+      return;
+    }
     if (this.danceWith) {
       this.stepDance(dt);
       return;
@@ -519,7 +532,7 @@ export class ViceGame {
       return;
     }
 
-    const fIsVerb = this.nearClubEnter() || this.nearDoor() !== null || !!this.nearDancePed();
+    const fIsVerb = this.nearClubEnter() || this.nearDoor() !== null || !!this.nearDancePed() || this.nearSexSpot();
     const wantSwing = ins.salinHeld
       || (!streetBin && !fIsVerb && ins.swingHeld)
       || (ins.jumpHeld && this.mode !== "ground");
@@ -1056,6 +1069,10 @@ export class ViceGame {
       this.eject();
       return;
     }
+    if (this.sexWith) {
+      this.stopSex();
+      return;
+    }
     if (this.danceWith) {
       this.stopDance();
       return;
@@ -1066,6 +1083,7 @@ export class ViceGame {
         this.leaveInterior();
         return;
       }
+      if (this.interior === "club" && this.tryStartSex()) return;
       if (this.interior === "club" && this.tryStartDance()) return;
       return;
     }
@@ -1154,6 +1172,7 @@ export class ViceGame {
       this.parkedRepair = null;
     }
     this.stopDance();
+    this.stopSex();
     this.player.x = room.streetX;
     this.player.z = room.streetZ;
     this.player.y = 0;
@@ -1243,7 +1262,7 @@ export class ViceGame {
   }
 
   private combat(dt: number) {
-    if (this.danceWith) { void dt; return; }
+    if (this.danceWith || this.sexWith) { void dt; return; }
     if (this.input.meleePressed && this.player.meleeT <= 0 && !this.drive) {
       this.player.meleeT = MELEE_CD;
       sharedSfx.punch();
@@ -1259,7 +1278,7 @@ export class ViceGame {
   }
 
   private canAimAssist(): boolean {
-    if (this.drive || this.danceWith) return false;
+    if (this.drive || this.danceWith || this.sexWith) return false;
     if (this.interior === "jail") return false;
     if (this.mode === "swing" || this.mode === "zip" || this.mode === "crawl") return false;
     return true;
@@ -1494,6 +1513,7 @@ export class ViceGame {
     p.hp -= dmg;
     this.lastCombat = this.time;
     if (this.danceWith === p) this.stopDance();
+    if (this.sexWith === p) this.stopSex();
     if (p.hp <= 0) {
       p.hp = 0;
       p.state = "down";
@@ -1669,7 +1689,7 @@ export class ViceGame {
         p.mesh.position.set(p.x, 0.22, p.z);
         continue;
       }
-      if (this.danceWith === p) continue;
+      if (this.danceWith === p || this.sexWith === p) continue;
       if (p.state === "webbed") {
         p.downT -= dt;
         p.mesh.position.set(p.x, 0, p.z);
@@ -1695,7 +1715,7 @@ export class ViceGame {
         tickWalk(p.mesh, this.time, false);
         continue;
       }
-      if (p.role === "dancer" && p.state !== "flee") {
+      if ((p.role === "dancer" || p.role === "vip") && p.state !== "flee") {
         p.mesh.position.set(p.x, 0.22, p.z);
         p.mesh.rotation.y = p.yaw + Math.sin(this.time * 0.7) * 0.35;
         tickDancePose(p.mesh, this.time + p.x);
@@ -1907,6 +1927,8 @@ export class ViceGame {
 
   private startJail() {
     this.eject();
+    this.stopDance();
+    this.stopSex();
     this.interior = "jail";
     this.mode = "ground";
     this.rope = null;
@@ -2021,11 +2043,13 @@ export class ViceGame {
     this.camRoll += (wantRoll - this.camRoll) * 0.1;
 
     const dir = lookDir(this.camYaw, this.camPitch);
-    const target = new Vector3(
-      this.player.x + this.player.vx * 0.1,
-      this.player.y + 1.45 - this.camDip * 0.5,
-      this.player.z + this.player.vz * 0.1,
-    );
+    const target = this.sexWith
+      ? new Vector3(CLUB_BED.x, 0.92, CLUB_BED.z)
+      : new Vector3(
+        this.player.x + this.player.vx * 0.1,
+        this.player.y + 1.45 - this.camDip * 0.5,
+        this.player.z + this.player.vz * 0.1,
+      );
     const want = this.camDist + this.camPunch * 1.4;
     let pos = target.subtract(dir.scale(want));
     if (this.interior === "street") {
@@ -2047,6 +2071,8 @@ export class ViceGame {
     if (this.drive) {
       this.silk.setEnabled(false);
       this.aimOrb.setEnabled(false);
+    } else if (this.sexWith) {
+      tickSexPlayerPose(this.playerMesh, this.time);
     } else if (this.danceWith) {
       tickSitPose(this.playerMesh, this.time);
     } else if (this.mode === "crawl") {
@@ -2202,6 +2228,7 @@ export class ViceGame {
       }
     }
     if (this.drive) this.prompt = "F / BİN  İN";
+    else if (this.sexWith) this.prompt = "F  ÇIK";
     else if (this.danceWith) this.prompt = "F  ÇIK";
     else if (nearCar && this.mode === "ground" && this.player.y < 1.35 && !this.nearClubEnter()) {
       this.prompt = "F / BİN";
@@ -2210,6 +2237,7 @@ export class ViceGame {
     const door = this.nearDoor();
     if (door === "enter") this.prompt = "F  GİR";
     else if (door === "exit") this.prompt = "F  ÇIK";
+    else if (this.nearSexSpot()) this.prompt = "F  SEKS";
     else if (!this.danceWith && this.nearDancePed()) this.prompt = "F  DANS";
   }
 
@@ -2319,6 +2347,121 @@ export class ViceGame {
     this.camDist = this.interior === "club" ? 6.4 : 8.2;
   }
 
+  private nearSexSpot(): boolean {
+    if (this.interior !== "club" || this.drive) return false;
+    if (this.nearBooth()) return true;
+    if (dist2(this.player.x, this.player.z, CLUB_BED.x, CLUB_BED.z) < 2.8) return true;
+    if (dist2(this.player.x, this.player.z, CLUB_VIP.x + 3.2, CLUB_VIP.z) < 2.4) return true;
+    return false;
+  }
+
+  private nearSexPed(): Ped | null {
+    if (this.interior !== "club") return null;
+    let best: Ped | null = null;
+    let bestD = 3.2;
+    for (const p of this.peds) {
+      if (p.state === "down" || p.state === "flee" || p.state === "webbed") continue;
+      if (p.role !== "vip" && p.role !== "dancer" && p.role !== "hostess") continue;
+      const d = dist2(this.player.x, this.player.z, p.x, p.z);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    if (best) return best;
+    if (this.nearSexSpot()) {
+      for (const p of this.peds) {
+        if (p.role === "vip" && p.state !== "down" && p.state !== "flee") return p;
+      }
+      for (const p of this.peds) {
+        if ((p.role === "dancer" || p.role === "hostess") && p.state !== "down" && p.state !== "flee") return p;
+      }
+    }
+    return null;
+  }
+
+  private tryStartSex(): boolean {
+    if (!this.nearSexSpot()) return false;
+    const her = this.nearSexPed();
+    if (!her) return false;
+    this.stopDance();
+    const yaw = CLUB_BED.yaw;
+    this.player.x = CLUB_BED.x;
+    this.player.z = CLUB_BED.z;
+    this.player.y = 0.62;
+    this.player.vx = 0;
+    this.player.vz = 0;
+    this.player.vy = 0;
+    this.player.yaw = yaw;
+    this.camYaw = yaw + 0.85;
+    this.camPitch = 0.42;
+    this.mode = "ground";
+    her.x = CLUB_BED.x + Math.sin(yaw) * 0.18;
+    her.z = CLUB_BED.z + Math.cos(yaw) * 0.18;
+    her.yaw = yaw + Math.PI;
+    her.state = "sit";
+    this.sexWith = her;
+    this.enterLock = 0.28;
+    this.camDist = 3.15;
+    clubBed.setLevel(1);
+    return true;
+  }
+
+  private stopSex() {
+    const her = this.sexWith;
+    if (!her) {
+      clubBed.setLevel(0);
+      return;
+    }
+    if (her.hp > 0 && her.state !== "down") {
+      her.state = "wander";
+      if (her.role === "vip") {
+        her.x = CLUB_BED.x + 0.7;
+        her.z = CLUB_BED.z;
+        her.tx = her.x;
+        her.tz = her.z;
+      }
+    }
+    this.sexWith = null;
+    this.player.x = INT.club.ox - 4.2;
+    this.player.z = INT.club.oz - 0.4;
+    this.player.y = 0;
+    this.player.vx = 0;
+    this.player.vz = 0;
+    this.enterLock = 0.28;
+    this.camDist = 6.4;
+    this.camPitch = 0.16;
+    clubBed.setLevel(0);
+  }
+
+  private stepSex(dt: number) {
+    const her = this.sexWith;
+    if (!her || her.state === "down" || her.state === "flee") {
+      this.stopSex();
+      return;
+    }
+    void dt;
+    const moving = Math.hypot(this.input.moveX, this.input.moveY) > 0.22;
+    if (moving) {
+      this.stopSex();
+      return;
+    }
+    this.player.x = CLUB_BED.x;
+    this.player.z = CLUB_BED.z;
+    this.player.vx = 0;
+    this.player.vz = 0;
+    this.player.vy = 0;
+    this.player.grounded = true;
+    this.player.yaw = CLUB_BED.yaw;
+    this.playerMesh.setEnabled(true);
+    this.silk.setEnabled(false);
+    tickSexPlayerPose(this.playerMesh, this.time);
+    her.x = CLUB_BED.x + Math.sin(CLUB_BED.yaw) * 0.16;
+    her.z = CLUB_BED.z + Math.cos(CLUB_BED.yaw) * 0.16;
+    her.yaw = CLUB_BED.yaw + Math.PI;
+    her.mesh.position.set(her.x, 0, her.z);
+    her.mesh.rotation.y = her.yaw;
+    tickSexPartnerPose(her.mesh, this.time);
+    clubBed.setLevel(1);
+  }
+
   private stepDance(dt: number) {
     const her = this.danceWith;
     if (!her || her.state === "down" || her.state === "flee") {
@@ -2353,10 +2496,12 @@ export class ViceGame {
 
   private tickClubBed() {
     if (this.interior === "club") {
-      clubBass.setLevel(1);
+      clubBass.setLevel(this.sexWith ? 0.35 : 1);
+      clubBed.setLevel(this.sexWith ? 1 : 0);
       if (radio.el) radio.el.volume = 0.12;
       return;
     }
+    clubBed.setLevel(0);
     if (radio.el) radio.el.volume = 0.4;
     if (this.interior !== "street") {
       clubBass.setLevel(0);
@@ -2395,16 +2540,19 @@ export class ViceGame {
     h.canAttach = !!this.aim && !this.drive;
     h.nearCar = !!this.nearestCar(3.2) && this.mode === "ground" && this.player.y < 1.35 && !this.drive;
     h.nearDoor = this.nearDoor() !== null;
-    h.canClimb = !this.drive && !this.danceWith && (
+    h.canClimb = !this.drive && !this.danceWith && !this.sexWith && (
       this.mode === "crawl"
       || !!nearestWall(this.player.x, Math.max(0.35, this.player.y + 0.4), this.player.z, this.city.colliders, 1.85)
     );
-    h.nearDance = !this.drive && !this.danceWith && !!this.nearDancePed();
+    h.nearSex = !this.drive && !this.sexWith && this.nearSexSpot();
+    h.inSex = !!this.sexWith;
+    h.nearDance = !this.drive && !this.danceWith && !h.nearSex && !!this.nearDancePed();
     h.inDance = !!this.danceWith;
     if (this.drive) h.enterVerb = "BİN";
-    else if (this.danceWith) h.enterVerb = "ÇIK";
+    else if (this.sexWith || this.danceWith) h.enterVerb = "ÇIK";
     else if (this.nearDoor() === "enter") h.enterVerb = "GİR";
     else if (this.nearDoor() === "exit") h.enterVerb = "ÇIK";
+    else if (h.nearSex) h.enterVerb = "SEKS";
     else if (h.nearDance) h.enterVerb = "DANS";
     else if (h.nearCar) h.enterVerb = "BİN";
     else h.enterVerb = "";
