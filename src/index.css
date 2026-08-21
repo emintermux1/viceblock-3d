@@ -229,6 +229,37 @@ button, .wallet-adapter-button { font-family: inherit; }
   background: rgba(8,12,16,0.7); padding: 8px 16px; letter-spacing: 0.14em; color: var(--gold);
   max-width: 70vw; text-align: center;
 }
+.hud-sex-talk {
+  position: absolute; left: 50%; bottom: calc(34% + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  background: rgba(28, 4, 18, 0.84);
+  border: 1px solid #ff4da6;
+  color: #ffe4ee;
+  padding: 8px 16px;
+  max-width: 74vw;
+  text-align: center;
+  pointer-events: none;
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 18px rgba(255, 77, 166, 0.28);
+}
+.hud-sex-talk b { display: block; color: #ff4da6; font-size: 15px; }
+.hud-sex-talk i { display: block; font-style: normal; opacity: 0.82; font-size: 13px; margin-top: 3px; }
+.hud-sex-acts {
+  position: absolute; left: 50%; bottom: calc(18% + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex; gap: 8px; z-index: 8; pointer-events: auto;
+}
+.hud-sex-acts button {
+  background: rgba(28, 6, 18, 0.86);
+  border: 1px solid #ff4da6;
+  color: #ffd0e4;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+.hud-sex-acts button.on { background: #ff4da6; color: #1a0410; }
 .hud-sub {
   position: absolute; left: 50%; top: calc(12px + env(safe-area-inset-top, 0px));
   transform: translateX(-50%);
@@ -340,6 +371,8 @@ button, .wallet-adapter-button { font-family: inherit; }
   .hud-money { font-size: 20px; }
   .hud-job span { font-size: 12px; }
   .hud-prompt { bottom: calc(40% + env(safe-area-inset-bottom, 0px)); font-size: 13px; padding: 6px 12px; }
+  .hud-sex-talk { bottom: calc(48% + env(safe-area-inset-bottom, 0px)); font-size: 13px; }
+  .hud-sex-acts { bottom: calc(32% + env(safe-area-inset-bottom, 0px)); }
   .hud-sub { top: calc(58px + env(safe-area-inset-top, 0px)); font-size: 13px; max-width: 70vw; }
   .hud-club-ping { top: calc(84px + env(safe-area-inset-top, 0px)); font-size: 12px; padding: 5px 12px; }
   .hud-search { font-size: 9px; }

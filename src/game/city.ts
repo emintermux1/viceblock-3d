@@ -5,7 +5,7 @@ import {
 import {
   asphaltMat, flareTex, makeDecal, makeSign, mat, roadMat, sidewalkMat, tickCityArt, uniqueMat, waterMat, woodDockMat,
 } from "./art";
-import { CLUB_BED, CLUB_SIZE, CLUB_VIP, FENCE, INT, LOC } from "./constants";
+import { CLUB_BEDS, CLUB_SIZE, CLUB_VIP, FENCE, INT, LOC } from "./constants";
 import {
   makeAwning, makeBench, makeBillboard, makeBird, makeBoat, makeBollard, makeBuilding, makeCone, makeContainer,
   makeCrane, makeCrate, makeDumpster, makeFence, makeHydrant, makeLamp, makeNewsbox, makePalm,
@@ -699,7 +699,10 @@ function placeDust(scene: Scene, x: number, z: number) {
   ps.start();
 }
 
-function roomWalls(scene: Scene, cx: number, cz: number, w: number, d: number, h: number, hex: string, doorZ: "neg" | "pos"): AABB[] {
+function roomWalls(
+  scene: Scene, cx: number, cz: number, w: number, d: number, h: number, hex: string, doorZ: "neg" | "pos",
+  westDoorZ?: number, westDoorGap = 2.6,
+): AABB[] {
   const t = 0.4;
   const colliders: AABB[] = [];
   const north = MeshBuilder.CreateBox("iw", { width: w, height: h, depth: t }, scene);
@@ -722,11 +725,35 @@ function roomWalls(scene: Scene, cx: number, cz: number, w: number, d: number, h
   const east = MeshBuilder.CreateBox("iw", { width: t, height: h, depth: d }, scene);
   east.position.set(cx + w / 2, h * 0.5, cz);
   east.material = mat(scene, hex);
-  const west = MeshBuilder.CreateBox("iw", { width: t, height: h, depth: d }, scene);
-  west.position.set(cx - w / 2, h * 0.5, cz);
-  west.material = mat(scene, hex);
   colliders.push(boxAABB(cx + w / 2, cz, t, d, h, 0, 0));
-  colliders.push(boxAABB(cx - w / 2, cz, t, d, h, 0, 0));
+  const westX = cx - w / 2;
+  if (westDoorZ !== undefined) {
+    const zMin = cz - d / 2;
+    const zMax = cz + d / 2;
+    const g0 = westDoorZ - westDoorGap * 0.5;
+    const g1 = westDoorZ + westDoorGap * 0.5;
+    const southH = g0 - zMin;
+    const northH = zMax - g1;
+    if (southH > 0.4) {
+      const sz = zMin + southH * 0.5;
+      const ws = MeshBuilder.CreateBox("iw", { width: t, height: h, depth: southH }, scene);
+      ws.position.set(westX, h * 0.5, sz);
+      ws.material = mat(scene, hex);
+      colliders.push(boxAABB(westX, sz, t, southH, h, 0, 0));
+    }
+    if (northH > 0.4) {
+      const nz = g1 + northH * 0.5;
+      const wn = MeshBuilder.CreateBox("iw", { width: t, height: h, depth: northH }, scene);
+      wn.position.set(westX, h * 0.5, nz);
+      wn.material = mat(scene, hex);
+      colliders.push(boxAABB(westX, nz, t, northH, h, 0, 0));
+    }
+  } else {
+    const west = MeshBuilder.CreateBox("iw", { width: t, height: h, depth: d }, scene);
+    west.position.set(westX, h * 0.5, cz);
+    west.material = mat(scene, hex);
+    colliders.push(boxAABB(westX, cz, t, d, h, 0, 0));
+  }
   void doorZ;
   return colliders;
 }
@@ -819,7 +846,7 @@ function buildClubRoom(scene: Scene): AABB[] {
   const w = 18;
   const d = 16;
   const h = 5.2;
-  const cols = roomWalls(scene, cx, cz, w, d, h, "#1a0812", "neg");
+  const cols = roomWalls(scene, cx, cz, w, d, h, "#1a0812", "neg", CLUB_VIP.z, 2.6);
   const floor = MeshBuilder.CreateGround("clubfl", { width: 17.4, height: 15.4 }, scene);
   floor.position.set(cx, 0.01, cz);
   const fm = uniqueMat(scene, "#180814", 0.08, 0.45);
@@ -860,7 +887,7 @@ function buildClubRoom(scene: Scene): AABB[] {
   innerDoor.position.set(cx, 1.3, cz - 7.85);
   innerDoor.material = mat(scene, "#ff4da6", 0.45);
   makeSign(scene, "ÇIK", cx, 2.85, cz - 7.7, 2.2, 0.35, "#12010c", "#ffc83d", 0);
-  placeVipNook(scene, cols);
+  placeVipSuite(scene, cols);
   const pink = new PointLight("clpink", new Vector3(cx, 3.4, cz + 4.2), scene);
   pink.diffuse = new Color3(1, 0.22, 0.58);
   pink.intensity = 0.85;
@@ -896,40 +923,117 @@ function buildClubRoom(scene: Scene): AABB[] {
   return cols;
 }
 
-function placeVipNook(scene: Scene, cols: AABB[]) {
-  const bx = CLUB_BED.x;
-  const bz = CLUB_BED.z;
-  const vx = CLUB_VIP.x;
-  const vz = CLUB_VIP.z;
-  const curtain = mat(scene, "#4a1028", 0.08);
-  const left = MeshBuilder.CreateBox("vipc1", { width: 0.12, height: 3.2, depth: 2.8 }, scene);
-  left.position.set(vx + 2.6, 1.6, vz + 0.4);
-  left.material = curtain;
-  const right = MeshBuilder.CreateBox("vipc2", { width: 2.4, height: 3.2, depth: 0.12 }, scene);
-  right.position.set(vx + 0.4, 1.6, vz - 1.8);
-  right.material = curtain;
-  cols.push(boxAABB(vx + 2.6, vz + 0.4, 0.12, 2.8, 3.2, 0, 0));
-  cols.push(boxAABB(vx + 0.4, vz - 1.8, 2.4, 0.12, 3.2, 0, 0));
-  const bed = MeshBuilder.CreateBox("vipbed", { width: 2.1, height: 0.32, depth: 2.8 }, scene);
-  bed.position.set(bx, 0.28, bz);
-  bed.material = mat(scene, "#3a1024", 0.1);
-  const sheet = MeshBuilder.CreateBox("vipsheet", { width: 1.95, height: 0.06, depth: 2.55 }, scene);
-  sheet.position.set(bx, 0.46, bz);
-  sheet.material = mat(scene, "#6a2040", 0.12);
-  const pillow = MeshBuilder.CreateBox("vippill", { width: 0.7, height: 0.16, depth: 0.42 }, scene);
-  pillow.position.set(bx + 0.55, 0.58, bz);
-  pillow.material = mat(scene, "#f0d0d8", 0.08);
-  const door = MeshBuilder.CreateBox("vipdoor", { width: 0.14, height: 2.5, depth: 1.8 }, scene);
-  door.position.set(vx + 3.35, 1.25, vz - 0.2);
-  door.material = mat(scene, "#ff4da6", 0.55);
-  makeSign(scene, "ÖZEL", vx + 3.5, 2.85, vz - 0.2, 1.8, 0.38, "#12010c", "#ff4da6", Math.PI / 2);
-  makeSign(scene, "SEKS", bx, 2.35, bz + 1.55, 1.6, 0.32, "#12010c", "#ff4da6", Math.PI);
-  const lamp = new PointLight("viplamp", new Vector3(bx, 2.6, bz), scene);
-  lamp.diffuse = new Color3(1, 0.28, 0.62);
-  lamp.intensity = 0.95;
-  lamp.range = 8;
-  const wash = new PointLight("vipwash", new Vector3(bx - 0.8, 1.6, bz), scene);
-  wash.diffuse = new Color3(1, 0.18, 0.5);
-  wash.intensity = 0.4;
-  wash.range = 6;
+function placeVipSuite(scene: Scene, cols: AABB[]) {
+  const cx = 244.6;
+  const cz = 1.0;
+  const w = 12.8;
+  const d = 17.2;
+  const h = 5.2;
+  const wall = mat(scene, "#14060c", 0.04);
+  const floor = MeshBuilder.CreateGround("vipfl", { width: w - 0.4, height: d - 0.4 }, scene);
+  floor.position.set(cx, 0.012, cz);
+  const fm = uniqueMat(scene, "#220814", 0.1, 0.55);
+  fm.specularPower = 80;
+  floor.material = fm;
+  const ceil = MeshBuilder.CreateGround("vipc", { width: w - 0.4, height: d - 0.4 }, scene);
+  ceil.position.set(cx, 5.02, cz);
+  ceil.rotation.x = Math.PI;
+  ceil.material = mat(scene, "#100408", 0.08);
+  const west = MeshBuilder.CreateBox("vipw", { width: 0.36, height: h, depth: d }, scene);
+  west.position.set(cx - w * 0.5, h * 0.5, cz);
+  west.material = wall;
+  cols.push(boxAABB(cx - w * 0.5, cz, 0.36, d, h, 0, 0));
+  const north = MeshBuilder.CreateBox("vipn", { width: w, height: h, depth: 0.36 }, scene);
+  north.position.set(cx, h * 0.5, cz + d * 0.5);
+  north.material = wall;
+  cols.push(boxAABB(cx, cz + d * 0.5, w, 0.36, h, 0, 0));
+  const south = MeshBuilder.CreateBox("vips", { width: w, height: h, depth: 0.36 }, scene);
+  south.position.set(cx, h * 0.5, cz - d * 0.5);
+  south.material = wall;
+  cols.push(boxAABB(cx, cz - d * 0.5, w, 0.36, h, 0, 0));
+  const frame = MeshBuilder.CreateBox("vipdoor", { width: 0.12, height: 2.7, depth: 2.5 }, scene);
+  frame.position.set(CLUB_VIP.x, 1.35, CLUB_VIP.z);
+  frame.material = mat(scene, "#ff4da6", 0.55);
+  makeSign(scene, "ÖZEL", CLUB_VIP.x + 0.2, 3.05, CLUB_VIP.z, 2.0, 0.4, "#12010c", "#ff4da6", Math.PI / 2);
+  makeSign(scene, "YAT", cx - 5.6, 3.4, cz + 3.2, 1.4, 0.32, "#12010c", "#ff4da6", Math.PI / 2);
+  makeSign(scene, "SAKSO", cx - 5.6, 3.4, cz - 0.2, 1.8, 0.32, "#12010c", "#ff4da6", Math.PI / 2);
+  makeSign(scene, "SEKS", cx - 5.6, 3.4, cz - 3.6, 1.5, 0.32, "#12010c", "#ff4da6", Math.PI / 2);
+  for (let i = 0; i < CLUB_BEDS.length; i++) placeVipBed(scene, CLUB_BEDS[i], i);
+  const mirror = uniqueMat(scene, "#d8c8d0", 0.22, 0.85);
+  mirror.specularPower = 128;
+  const m1 = MeshBuilder.CreateBox("vipm", { width: 0.04, height: 2.2, depth: 1.8 }, scene);
+  m1.position.set(cx - 6.15, 1.8, cz + 4.4);
+  m1.material = mirror;
+  const m2 = MeshBuilder.CreateBox("vipm2", { width: 0.04, height: 2.2, depth: 1.8 }, scene);
+  m2.position.set(cx - 6.15, 1.8, cz - 4.6);
+  m2.material = mirror;
+  for (let i = 0; i < 6; i++) {
+    const bottle = MeshBuilder.CreateCylinder("vbtl", { height: 0.26, diameter: 0.07, tessellation: 6 }, scene);
+    bottle.position.set(cx - 5.4 + (i % 2) * 0.18, 0.72, cz - 6.4 + i * 2.2);
+    bottle.material = mat(scene, i % 2 ? "#ff4da6" : "#2ef2d0", 0.4);
+  }
+  const lamp = new PointLight("viplamp", new Vector3(cx, 2.8, cz), scene);
+  lamp.diffuse = new Color3(1, 0.2, 0.48);
+  lamp.intensity = 1.15;
+  lamp.range = 14;
+  const wash = new PointLight("vipwash", new Vector3(cx - 2.2, 1.5, cz + 2), scene);
+  wash.diffuse = new Color3(1, 0.12, 0.38);
+  wash.intensity = 0.55;
+  wash.range = 9;
+  const fog = new ParticleSystem("vipfog", 28, scene);
+  fog.particleTexture = flareTex(scene);
+  fog.emitter = new Vector3(cx, 0.35, cz);
+  fog.minEmitBox = new Vector3(-5, 0, -7);
+  fog.maxEmitBox = new Vector3(5, 0.5, 7);
+  fog.color1 = new Color4(1, 0.18, 0.42, 0.2);
+  fog.color2 = new Color4(0.7, 0.08, 0.32, 0.06);
+  fog.minSize = 0.8;
+  fog.maxSize = 2.1;
+  fog.minLifeTime = 2.4;
+  fog.maxLifeTime = 4.6;
+  fog.emitRate = 8;
+  fog.direction1 = new Vector3(-0.06, 0.1, -0.04);
+  fog.direction2 = new Vector3(0.06, 0.24, 0.04);
+  fog.minEmitPower = 0.03;
+  fog.maxEmitPower = 0.1;
+  fog.updateSpeed = 0.02;
+  fog.start();
+}
+
+function placeVipBed(scene: Scene, bed: { x: number; z: number; yaw: number }, i: number) {
+  const satin = i % 2 ? "#7a2048" : "#5a1838";
+  const base = MeshBuilder.CreateBox("vipbed", { width: 2.15, height: 0.3, depth: 2.85 }, scene);
+  base.position.set(bed.x, 0.26, bed.z);
+  base.rotation.y = bed.yaw;
+  base.material = mat(scene, "#2a0c1a", 0.08);
+  const sheet = MeshBuilder.CreateBox("vipsheet", { width: 2.02, height: 0.05, depth: 2.62 }, scene);
+  sheet.position.set(bed.x, 0.44, bed.z);
+  sheet.rotation.y = bed.yaw + 0.04;
+  sheet.material = mat(scene, satin, 0.16);
+  const rumple = MeshBuilder.CreateBox("viprum", { width: 0.85, height: 0.08, depth: 1.15 }, scene);
+  rumple.position.set(bed.x + 0.15, 0.5, bed.z - 0.35);
+  rumple.rotation.y = bed.yaw - 0.28;
+  rumple.material = mat(scene, "#8a3058", 0.14);
+  const pillow = MeshBuilder.CreateBox("vippill", { width: 0.72, height: 0.15, depth: 0.4 }, scene);
+  pillow.position.set(bed.x + 0.85, 0.56, bed.z + 0.15);
+  pillow.rotation.y = bed.yaw + 0.18;
+  pillow.material = mat(scene, "#f4d8e0", 0.1);
+  const pillow2 = MeshBuilder.CreateBox("vippill2", { width: 0.62, height: 0.12, depth: 0.36 }, scene);
+  pillow2.position.set(bed.x + 0.78, 0.54, bed.z - 0.28);
+  pillow2.rotation.y = bed.yaw - 0.22;
+  pillow2.material = mat(scene, "#e8c0cc", 0.08);
+  const stand = MeshBuilder.CreateBox("vipst", { width: 0.42, height: 0.46, depth: 0.42 }, scene);
+  stand.position.set(bed.x - 0.2, 0.23, bed.z + 1.55);
+  stand.material = mat(scene, "#1a0810");
+  const glass = MeshBuilder.CreateCylinder("vipgl", { height: 0.16, diameter: 0.08, tessellation: 6 }, scene);
+  glass.position.set(bed.x - 0.2, 0.56, bed.z + 1.55);
+  glass.material = mat(scene, "#ff4da6", 0.45);
+  const lamp = new PointLight("bedlamp" + i, new Vector3(bed.x, 2.15, bed.z), scene);
+  lamp.diffuse = new Color3(1, 0.22, 0.55);
+  lamp.intensity = 0.55;
+  lamp.range = 5.5;
+  const skin = new PointLight("bedskin" + i, new Vector3(bed.x, 1.15, bed.z), scene);
+  skin.diffuse = new Color3(1, 0.35, 0.55);
+  skin.intensity = 0.28;
+  skin.range = 3.2;
 }

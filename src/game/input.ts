@@ -24,6 +24,10 @@ export class Input {
   zipPressed = false;
   climbHeld = false;
   climbPressed = false;
+  actYatPressed = false;
+  actSaksoPressed = false;
+  actSeksPressed = false;
+  private pendingAct: "yat" | "sakso" | "seks" | null = null;
 
   stickActive = false;
   stickBaseX = 0;
@@ -205,6 +209,10 @@ export class Input {
     this.pausePressed = this.edge("escape");
     this.surrenderPressed = this.edge("g");
     this.talkPressed = this.edge("t");
+    this.actYatPressed = this.edge("1") || this.pendingAct === "yat";
+    this.actSaksoPressed = this.edge("2") || this.pendingAct === "sakso";
+    this.actSeksPressed = this.edge("3") || this.pendingAct === "seks";
+    this.pendingAct = null;
 
     this.shootWas = this.shootHeld;
     this.enterWas = this.enterTouch;
@@ -219,8 +227,13 @@ export class Input {
     this.shootPressed = this.enterPressed = this.jumpPressed = false;
     this.reloadPressed = this.meleePressed = this.pausePressed = false;
     this.surrenderPressed = this.talkPressed = this.zipPressed = this.climbPressed = false;
+    this.actYatPressed = this.actSaksoPressed = this.actSeksPressed = false;
     this.lookDX = 0;
     this.lookDY = 0;
+  }
+
+  queueAct(kind: "yat" | "sakso" | "seks") {
+    this.pendingAct = kind;
   }
 
   consumeLook() {

@@ -102,8 +102,15 @@ export const INT = {
   club: { ox: 260, oz: 0 },
 };
 
-export const CLUB_BED = { x: 254.2, z: 4.6, yaw: Math.PI * 0.5 };
-export const CLUB_VIP = { x: 252.6, z: 3.4 };
+export const CLUB_BEDS = [
+  { x: 246.8, z: 7.2, yaw: Math.PI * 0.5 },
+  { x: 243.6, z: 3.2, yaw: Math.PI * 0.5 },
+  { x: 246.8, z: -1.0, yaw: Math.PI * 0.5 },
+  { x: 243.6, z: -5.2, yaw: Math.PI * 0.5 },
+] as const;
+export const CLUB_BED = CLUB_BEDS[1];
+export const CLUB_VIP = { x: 251.0, z: 3.4 };
+export const CLUB_VIP_ROOM = { x: 244.6, z: 1.0, hw: 6.4, hd: 8.4 };
 
 export const PD = { x: 52, z: -18 };
 export const FENCE = { x: 36, z: 70 };

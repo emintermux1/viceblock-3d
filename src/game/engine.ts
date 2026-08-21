@@ -7,7 +7,8 @@ import { clubBass, clubBed, gestureUnlock, radio, sharedSfx } from "./audio";
 import { buildCity, tickCityArt, type CityData } from "./city";
 import { blockedAt, centerInside, circleHitsAABB, landFloor, resolveCapsule, slideMove, unstickCircle } from "./collide";
 import {
-  ARREST_R, BAIL, CALL_T, CAR_FRICTION, CAR_HP, CAR_REV, CAR_SPEC, CHAR, CLUB_BED, CLUB_SIZE, CLUB_VIP, COP_DMG,
+  ARREST_R, BAIL, CALL_T, CAR_FRICTION, CAR_HP, CAR_REV, CAR_SPEC, CHAR, CLUB_BED, CLUB_BEDS, CLUB_SIZE, CLUB_VIP,
+  CLUB_VIP_ROOM, COP_DMG,
   COP_FOOT, COP_SHOT_CD, CRANE_GOAL, FENCE, FIRE_CD, GRAVITY, GUN_DMG, GUN_RANGE, INT, JAIL_WAIT,
   JUMP_VEL, LOC, MAG, MELEE_CD, MELEE_DMG, MELEE_RANGE, PD, PD_OUT, PLAYER_R,
   REGEN_DELAY, REGEN_RATE, RELOAD_T, REPAIR_COST, RESERVE, SAVE_KEY, SEARCH_R0,
@@ -17,12 +18,14 @@ import {
 import type { Input } from "./input";
 import {
   findNamed, flareTex, lookDir, makeBouncer, makeCar, makeCop, makeDancer, makeHero, makePed, makeSilk, makeWoman, mat, placeSilk,
-  setGunHolstered, tickClimbPose, tickDancePose, tickDownPose, tickGunPose, tickLapDancePose, tickSexPartnerPose, tickSexPlayerPose, tickSitPose, tickSwingPose, tickWalk,
+  resetBodyPose, setGunHolstered, tickClimbPose, tickDancePose, tickDownPose, tickGunPose, tickLapDancePose,
+  tickSexPose, tickSitPose, tickSwingPose, tickWalk,
 } from "./meshes";
 import {
   nearestWall, pickAnchor, standY, stepAir, stepSwing, stepZip, type Anchor, type SwingRope,
 } from "./swing";
-import type { AABB, CharacterId, CopState, HudState, InteriorId, MissionId, MoveMode, PedState } from "./types";
+import { SEX_LINES } from "./sextalk";
+import type { AABB, CharacterId, CopState, HudState, InteriorId, MissionId, MoveMode, PedState, SexKind } from "./types";
 import { emptyHud, pointInAABB } from "./types";
 
 type CarKind = "hatch" | "sedan" | "muscle" | "cop";
@@ -32,10 +35,11 @@ type Car = {
   wrecked: boolean; exploding: boolean; boomT: number; occupied: boolean; special: string;
   smoke: ParticleSystem | null; stolen: boolean; flow: boolean; flowAxis: "x" | "z"; flowDir: number;
 };
-type PedRole = "wander" | "group" | "sit" | "cross" | "clerk" | "fence" | "dancer" | "hostess" | "bouncer" | "nightlife" | "vip";
+type PedRole = "wander" | "group" | "sit" | "cross" | "clerk" | "fence" | "dancer" | "hostess" | "bouncer" | "nightlife" | "vip" | "couple";
 type Ped = {
   mesh: Mesh; x: number; z: number; yaw: number; hp: number; state: PedState;
   tx: number; tz: number; downT: number; color: string; role: PedRole; callT: number; waitT: number;
+  coupleBed?: number; coupleKind?: SexKind;
 };
 type Cop = {
   mesh: Mesh; x: number; z: number; yaw: number; hp: number; state: CopState;
@@ -66,6 +70,12 @@ export class ViceGame {
   private danceWith: Ped | null = null;
   private danceT = 0;
   private sexWith: Ped | null = null;
+  private sexKind: SexKind = "seks";
+  private sexBed: { x: number; z: number; yaw: number } = { x: CLUB_BED.x, z: CLUB_BED.z, yaw: CLUB_BED.yaw };
+  private sexTalkI = 0;
+  private sexTalkT = 0;
+  private sexTalk = "";
+  private sexTalkEn = "";
   private silk!: Mesh;
   private aimOrb!: Mesh;
   private assistMark!: Mesh;
@@ -385,12 +395,52 @@ export class ViceGame {
       });
     }
     const vip = makeDancer(this.scene, 44);
-    vip.position.set(CLUB_BED.x + 0.7, 0, CLUB_BED.z);
+    vip.position.set(CLUB_BED.x + 0.85, 0, CLUB_BED.z);
     this.peds.push({
-      mesh: vip, x: CLUB_BED.x + 0.7, z: CLUB_BED.z, yaw: CLUB_BED.yaw + Math.PI, hp: 40,
-      state: "wander", tx: CLUB_BED.x + 0.7, tz: CLUB_BED.z, downT: 0,
+      mesh: vip, x: CLUB_BED.x + 0.85, z: CLUB_BED.z, yaw: CLUB_BED.yaw + Math.PI, hp: 40,
+      state: "wander", tx: CLUB_BED.x + 0.85, tz: CLUB_BED.z, downT: 0,
       color: "#ff4da6", role: "vip", callT: 0, waitT: 0,
     });
+    const suiteHosts: [number, number][] = [
+      [249.6, 3.4],
+      [245.4, 6.4],
+      [245.4, -2.6],
+    ];
+    for (let i = 0; i < suiteHosts.length; i++) {
+      const [x, z] = suiteHosts[i];
+      const mesh = makeWoman(this.scene, 70 + i, true);
+      mesh.position.set(x, 0, z);
+      this.peds.push({
+        mesh, x, z, yaw: Math.PI / 2, hp: 40,
+        state: "wander", tx: x, tz: z, downT: 0,
+        color: "#ff4da6", role: "vip", callT: 0, waitT: 0,
+      });
+    }
+    const coupleKinds: SexKind[] = ["seks", "yat", "sakso"];
+    const coupleBeds = [0, 2, 3];
+    for (let i = 0; i < coupleBeds.length; i++) {
+      const bi = coupleBeds[i];
+      const bed = CLUB_BEDS[bi];
+      const kind = coupleKinds[i];
+      const she = makeDancer(this.scene, 80 + i);
+      const he = makePed(this.scene, 11 + i * 2);
+      const sx = bed.x + (kind === "sakso" ? 0.45 : 0.08);
+      const sz = bed.z;
+      she.position.set(sx, 0, sz);
+      he.position.set(bed.x, 0, sz);
+      this.peds.push({
+        mesh: she, x: sx, z: sz, yaw: bed.yaw + Math.PI, hp: 40,
+        state: "sit", tx: sx, tz: sz, downT: 0,
+        color: "#ff4da6", role: "couple", callT: 0, waitT: 0,
+        coupleBed: bi, coupleKind: kind,
+      });
+      this.peds.push({
+        mesh: he, x: bed.x, z: sz, yaw: bed.yaw, hp: 40,
+        state: "sit", tx: bed.x, tz: sz, downT: 0,
+        color: "#888", role: "couple", callT: 0, waitT: 0,
+        coupleBed: bi, coupleKind: kind,
+      });
+    }
   }
 
   private tick() {
@@ -435,6 +485,10 @@ export class ViceGame {
     }
 
     if (this.input.enterPressed && this.enterLock <= 0) this.tryUseF();
+    if (this.input.actYatPressed) this.tryStartOrSwitchSex("yat");
+    if (this.input.actSaksoPressed) this.tryStartOrSwitchSex("sakso");
+    if (this.input.actSeksPressed) this.tryStartOrSwitchSex("seks");
+    this.tickSexTalk(dt);
 
     if (this.interior === "jail") {
       this.tickJail(dt);
@@ -1083,7 +1137,7 @@ export class ViceGame {
         this.leaveInterior();
         return;
       }
-      if (this.interior === "club" && this.tryStartSex()) return;
+      if (this.interior === "club" && this.tryStartSex("seks")) return;
       if (this.interior === "club" && this.tryStartDance()) return;
       return;
     }
@@ -1159,7 +1213,8 @@ export class ViceGame {
       { minX: cx - 9, maxX: cx + 9, minZ: cz + 7.6, maxZ: cz + 8.2, minY: 0, maxY: 5.2 },
       { minX: cx - 9, maxX: cx + 9, minZ: cz - 8.2, maxZ: cz - 7.6, minY: 0, maxY: 5.2 },
       { minX: cx + 8.4, maxX: cx + 9, minZ: cz - 8, maxZ: cz + 8, minY: 0, maxY: 5.2 },
-      { minX: cx - 9, maxX: cx - 8.4, minZ: cz - 8, maxZ: cz + 8, minY: 0, maxY: 5.2 },
+      { minX: cx - 9, maxX: cx - 8.4, minZ: cz - 8, maxZ: CLUB_VIP.z - 1.3, minY: 0, maxY: 5.2 },
+      { minX: cx - 9, maxX: cx - 8.4, minZ: CLUB_VIP.z + 1.3, maxZ: cz + 8, minY: 0, maxY: 5.2 },
     );
   }
 
@@ -1247,7 +1302,11 @@ export class ViceGame {
         case "mart": c = { x: INT.mart.ox, z: INT.mart.oz, hw: 5.6, hd: 4.6 }; break;
         case "garage": c = { x: INT.garage.ox, z: INT.garage.oz, hw: 6.6, hd: 5.6 }; break;
         case "jail": c = { x: INT.jail.ox, z: INT.jail.oz, hw: 4.2, hd: 3.6 }; break;
-        case "club": c = { x: INT.club.ox, z: INT.club.oz, hw: 8.2, hd: 7.2 }; break;
+        case "club": {
+          const main = Math.abs(x - INT.club.ox) < 8.2 && Math.abs(z - INT.club.oz) < 7.2;
+          const vip = Math.abs(x - CLUB_VIP_ROOM.x) < CLUB_VIP_ROOM.hw && Math.abs(z - CLUB_VIP_ROOM.z) < CLUB_VIP_ROOM.hd;
+          return main || vip;
+        }
         default: {
           const _never: never = this.interior;
           void _never;
@@ -1715,6 +1774,10 @@ export class ViceGame {
         tickWalk(p.mesh, this.time, false);
         continue;
       }
+      if (p.role === "couple" && p.state !== "flee") {
+        this.poseCouple(p);
+        continue;
+      }
       if ((p.role === "dancer" || p.role === "vip") && p.state !== "flee") {
         p.mesh.position.set(p.x, 0.22, p.z);
         p.mesh.rotation.y = p.yaw + Math.sin(this.time * 0.7) * 0.35;
@@ -1737,7 +1800,10 @@ export class ViceGame {
         const d = Math.hypot(ax, az) || 1;
         const nx = p.x + (ax / d) * 1.35 * dt;
         const nz = p.z + (az / d) * 1.35 * dt;
-        if (Math.abs(nx - INT.club.ox) < 7.4 && Math.abs(nz - INT.club.oz) < 6.2) {
+        if (
+          (Math.abs(nx - INT.club.ox) < 7.4 && Math.abs(nz - INT.club.oz) < 6.2)
+          || (Math.abs(nx - CLUB_VIP_ROOM.x) < CLUB_VIP_ROOM.hw - 0.4 && Math.abs(nz - CLUB_VIP_ROOM.z) < CLUB_VIP_ROOM.hd - 0.4)
+        ) {
           if (!this.circleHitsCols(nx, p.z, 0.35, this.city.interiors.club.colliders)) p.x = nx;
           if (!this.circleHitsCols(p.x, nz, 0.35, this.city.interiors.club.colliders)) p.z = nz;
         }
@@ -2029,7 +2095,8 @@ export class ViceGame {
   private cameraFollow() {
     const spd = Math.hypot(this.player.vx, this.player.vy, this.player.vz);
     const flying = this.mode === "swing" || this.mode === "zip" || this.mode === "air" || this.mode === "crawl";
-    const wantDist = this.drive ? 11.2
+    const wantDist = this.sexWith ? 2.65
+      : this.drive ? 11.2
       : this.interior !== "street" ? this.camDist
       : flying ? 9.2 + Math.min(4.2, spd * 0.055)
       : 8.2;
@@ -2044,7 +2111,7 @@ export class ViceGame {
 
     const dir = lookDir(this.camYaw, this.camPitch);
     const target = this.sexWith
-      ? new Vector3(CLUB_BED.x, 0.92, CLUB_BED.z)
+      ? new Vector3(this.sexBed.x, this.sexKind === "sakso" ? 0.78 : 0.88, this.sexBed.z)
       : new Vector3(
         this.player.x + this.player.vx * 0.1,
         this.player.y + 1.45 - this.camDip * 0.5,
@@ -2072,7 +2139,7 @@ export class ViceGame {
       this.silk.setEnabled(false);
       this.aimOrb.setEnabled(false);
     } else if (this.sexWith) {
-      tickSexPlayerPose(this.playerMesh, this.time);
+      tickSexPose(this.playerMesh, this.time, this.sexKind, "player");
     } else if (this.danceWith) {
       tickSitPose(this.playerMesh, this.time);
     } else if (this.mode === "crawl") {
@@ -2228,7 +2295,7 @@ export class ViceGame {
       }
     }
     if (this.drive) this.prompt = "F / BİN  İN";
-    else if (this.sexWith) this.prompt = "F  ÇIK";
+    else if (this.sexWith) this.prompt = "F  ÇIK    1 YAT  2 SAKSO  3 SEKS";
     else if (this.danceWith) this.prompt = "F  ÇIK";
     else if (nearCar && this.mode === "ground" && this.player.y < 1.35 && !this.nearClubEnter()) {
       this.prompt = "F / BİN";
@@ -2237,7 +2304,7 @@ export class ViceGame {
     const door = this.nearDoor();
     if (door === "enter") this.prompt = "F  GİR";
     else if (door === "exit") this.prompt = "F  ÇIK";
-    else if (this.nearSexSpot()) this.prompt = "F  SEKS";
+    else if (this.nearSexSpot()) this.prompt = "1 YAT    2 SAKSO    3 / F  SEKS";
     else if (!this.danceWith && this.nearDancePed()) this.prompt = "F  DANS";
   }
 
@@ -2347,18 +2414,39 @@ export class ViceGame {
     this.camDist = this.interior === "club" ? 6.4 : 8.2;
   }
 
+  private nearestBed(): { x: number; z: number; yaw: number } {
+    let best: { x: number; z: number; yaw: number } = CLUB_BEDS[1];
+    let bestD = 99;
+    for (const b of CLUB_BEDS) {
+      const d = dist2(this.player.x, this.player.z, b.x, b.z);
+      if (d < bestD) { bestD = d; best = b; }
+    }
+    return best;
+  }
+
+  private bedIndex(bed: { x: number; z: number }): number {
+    return CLUB_BEDS.findIndex((b) => b.x === bed.x && b.z === bed.z);
+  }
+
+  private inVipSuite(): boolean {
+    if (this.interior !== "club") return false;
+    return Math.abs(this.player.x - CLUB_VIP_ROOM.x) < CLUB_VIP_ROOM.hw + 0.8
+      && Math.abs(this.player.z - CLUB_VIP_ROOM.z) < CLUB_VIP_ROOM.hd + 0.8;
+  }
+
   private nearSexSpot(): boolean {
     if (this.interior !== "club" || this.drive) return false;
-    if (this.nearBooth()) return true;
-    if (dist2(this.player.x, this.player.z, CLUB_BED.x, CLUB_BED.z) < 2.8) return true;
-    if (dist2(this.player.x, this.player.z, CLUB_VIP.x + 3.2, CLUB_VIP.z) < 2.4) return true;
+    if (dist2(this.player.x, this.player.z, CLUB_VIP.x, CLUB_VIP.z) < 2.6) return true;
+    for (const b of CLUB_BEDS) {
+      if (dist2(this.player.x, this.player.z, b.x, b.z) < 2.5) return true;
+    }
     return false;
   }
 
   private nearSexPed(): Ped | null {
     if (this.interior !== "club") return null;
     let best: Ped | null = null;
-    let bestD = 3.2;
+    let bestD = 3.4;
     for (const p of this.peds) {
       if (p.state === "down" || p.state === "flee" || p.state === "webbed") continue;
       if (p.role !== "vip" && p.role !== "dancer" && p.role !== "hostess") continue;
@@ -2377,58 +2465,136 @@ export class ViceGame {
     return null;
   }
 
-  private tryStartSex(): boolean {
+  private tryStartOrSwitchSex(kind: SexKind) {
+    if (this.sexWith) {
+      this.sexKind = kind;
+      this.placeSexBodies();
+      return;
+    }
+    if (this.enterLock > 0) return;
+    this.tryStartSex(kind);
+  }
+
+  private tryStartSex(kind: SexKind = "seks"): boolean {
     if (!this.nearSexSpot()) return false;
     const her = this.nearSexPed();
     if (!her) return false;
     this.stopDance();
-    const yaw = CLUB_BED.yaw;
-    this.player.x = CLUB_BED.x;
-    this.player.z = CLUB_BED.z;
-    this.player.y = 0.62;
+    this.sexKind = kind;
+    this.sexBed = this.nearestBed();
+    this.setCoupleHidden(this.bedIndex(this.sexBed), true);
     this.player.vx = 0;
     this.player.vz = 0;
     this.player.vy = 0;
-    this.player.yaw = yaw;
-    this.camYaw = yaw + 0.85;
-    this.camPitch = 0.42;
     this.mode = "ground";
-    her.x = CLUB_BED.x + Math.sin(yaw) * 0.18;
-    her.z = CLUB_BED.z + Math.cos(yaw) * 0.18;
-    her.yaw = yaw + Math.PI;
     her.state = "sit";
     this.sexWith = her;
+    this.placeSexBodies();
+    this.camYaw = this.sexBed.yaw + 0.95;
+    this.camPitch = 0.48;
     this.enterLock = 0.28;
-    this.camDist = 3.15;
-    clubBed.setLevel(1);
+    this.camDist = 2.75;
+    clubBed.setLevel(this.inVipSuite() ? 1.35 : 1);
+    this.rotateSexTalk(true);
     return true;
+  }
+
+  private placeSexBodies() {
+    const bed = this.sexBed;
+    const yaw = bed.yaw;
+    const her = this.sexWith;
+    const fx = Math.sin(yaw);
+    const fz = Math.cos(yaw);
+    switch (this.sexKind) {
+      case "yat":
+        this.player.x = bed.x;
+        this.player.z = bed.z;
+        this.player.y = 0.56;
+        this.player.yaw = yaw;
+        if (her) {
+          her.x = bed.x + fx * 0.12 + fz * 0.1;
+          her.z = bed.z + fz * 0.12 - fx * 0.1;
+          her.yaw = yaw;
+        }
+        break;
+      case "sakso":
+        this.player.x = bed.x - fx * 0.05;
+        this.player.z = bed.z - fz * 0.05;
+        this.player.y = 0.58;
+        this.player.yaw = yaw;
+        if (her) {
+          her.x = bed.x + fx * 0.52;
+          her.z = bed.z + fz * 0.52;
+          her.yaw = yaw + Math.PI;
+        }
+        break;
+      case "seks":
+        this.player.x = bed.x;
+        this.player.z = bed.z;
+        this.player.y = 0.62;
+        this.player.yaw = yaw;
+        if (her) {
+          her.x = bed.x + fx * 0.16;
+          her.z = bed.z + fz * 0.16;
+          her.yaw = yaw + Math.PI;
+        }
+        break;
+      default: {
+        const _never: never = this.sexKind;
+        void _never;
+      }
+    }
+  }
+
+  private setCoupleHidden(bedI: number, hide: boolean) {
+    if (bedI < 0) return;
+    for (const p of this.peds) {
+      if (p.role === "couple" && p.coupleBed === bedI) p.mesh.setEnabled(!hide);
+    }
+  }
+
+  private poseCouple(p: Ped) {
+    if (!p.mesh.isEnabled()) return;
+    const bed = CLUB_BEDS[p.coupleBed ?? 1];
+    const kind = p.coupleKind ?? "seks";
+    const who = p.mesh.name.startsWith("dancer") ? "partner" : "player";
+    p.x = who === "partner" && kind === "sakso" ? bed.x + 0.5 : bed.x;
+    p.z = bed.z;
+    p.yaw = who === "partner" ? bed.yaw + Math.PI : bed.yaw;
+    p.mesh.position.set(p.x, 0, p.z);
+    p.mesh.rotation.y = p.yaw;
+    tickSexPose(p.mesh, this.time + p.x, kind, who);
   }
 
   private stopSex() {
     const her = this.sexWith;
     if (!her) {
-      clubBed.setLevel(0);
+      clubBed.setLevel(this.inVipSuite() ? 0.2 : 0);
       return;
     }
+    resetBodyPose(this.playerMesh);
+    resetBodyPose(her.mesh);
+    this.setCoupleHidden(this.bedIndex(this.sexBed), false);
     if (her.hp > 0 && her.state !== "down") {
       her.state = "wander";
       if (her.role === "vip") {
-        her.x = CLUB_BED.x + 0.7;
-        her.z = CLUB_BED.z;
+        her.x = this.sexBed.x + 0.85;
+        her.z = this.sexBed.z;
         her.tx = her.x;
         her.tz = her.z;
       }
     }
     this.sexWith = null;
-    this.player.x = INT.club.ox - 4.2;
-    this.player.z = INT.club.oz - 0.4;
+    this.player.x = this.sexBed.x + 1.7;
+    this.player.z = this.sexBed.z;
     this.player.y = 0;
     this.player.vx = 0;
     this.player.vz = 0;
     this.enterLock = 0.28;
     this.camDist = 6.4;
     this.camPitch = 0.16;
-    clubBed.setLevel(0);
+    resetBodyPose(this.playerMesh);
+    clubBed.setLevel(this.inVipSuite() ? 0.2 : 0);
   }
 
   private stepSex(dt: number) {
@@ -2443,23 +2609,52 @@ export class ViceGame {
       this.stopSex();
       return;
     }
-    this.player.x = CLUB_BED.x;
-    this.player.z = CLUB_BED.z;
+    this.placeSexBodies();
     this.player.vx = 0;
     this.player.vz = 0;
     this.player.vy = 0;
     this.player.grounded = true;
-    this.player.yaw = CLUB_BED.yaw;
     this.playerMesh.setEnabled(true);
     this.silk.setEnabled(false);
-    tickSexPlayerPose(this.playerMesh, this.time);
-    her.x = CLUB_BED.x + Math.sin(CLUB_BED.yaw) * 0.16;
-    her.z = CLUB_BED.z + Math.cos(CLUB_BED.yaw) * 0.16;
-    her.yaw = CLUB_BED.yaw + Math.PI;
+    tickSexPose(this.playerMesh, this.time, this.sexKind, "player");
     her.mesh.position.set(her.x, 0, her.z);
     her.mesh.rotation.y = her.yaw;
-    tickSexPartnerPose(her.mesh, this.time);
-    clubBed.setLevel(1);
+    tickSexPose(her.mesh, this.time, this.sexKind, "partner");
+    clubBed.setLevel(this.inVipSuite() ? 1.35 : 1);
+  }
+
+  private nearTalkWoman(): boolean {
+    if (this.sexWith || this.danceWith) return true;
+    if (this.interior !== "club" && this.interior !== "street") return false;
+    for (const p of this.peds) {
+      if (p.state === "down" || p.state === "flee" || p.state === "webbed") continue;
+      if (p.role !== "dancer" && p.role !== "hostess" && p.role !== "vip" && p.role !== "nightlife" && p.role !== "couple") continue;
+      if (dist2(this.player.x, this.player.z, p.x, p.z) < 3.6) return true;
+    }
+    return this.nearSexSpot();
+  }
+
+  private rotateSexTalk(force = false) {
+    if (!force && this.sexTalkT > 0) return;
+    this.sexTalkI = (this.sexTalkI + 1) % SEX_LINES.length;
+    const line = SEX_LINES[this.sexTalkI];
+    this.sexTalk = line.tr;
+    this.sexTalkEn = line.en;
+    this.sexTalkT = 3.4;
+    if (this.sexWith || this.inVipSuite()) clubBed.talk();
+  }
+
+  private tickSexTalk(dt: number) {
+    if (!this.nearTalkWoman()) {
+      this.sexTalkT = Math.max(0, this.sexTalkT - dt);
+      if (this.sexTalkT <= 0) {
+        this.sexTalk = "";
+        this.sexTalkEn = "";
+      }
+      return;
+    }
+    this.sexTalkT -= dt;
+    if (this.sexTalkT <= 0 || !this.sexTalk) this.rotateSexTalk();
   }
 
   private stepDance(dt: number) {
@@ -2496,9 +2691,10 @@ export class ViceGame {
 
   private tickClubBed() {
     if (this.interior === "club") {
-      clubBass.setLevel(this.sexWith ? 0.35 : 1);
-      clubBed.setLevel(this.sexWith ? 1 : 0);
-      if (radio.el) radio.el.volume = 0.12;
+      clubBass.setLevel(this.sexWith ? 0.28 : 1);
+      const vip = this.inVipSuite();
+      clubBed.setLevel(this.sexWith ? (vip ? 1.35 : 1) : vip ? 0.22 : 0);
+      if (radio.el) radio.el.volume = this.sexWith ? 0.06 : 0.12;
       return;
     }
     clubBed.setLevel(0);
@@ -2546,6 +2742,10 @@ export class ViceGame {
     );
     h.nearSex = !this.drive && !this.sexWith && this.nearSexSpot();
     h.inSex = !!this.sexWith;
+    h.sexActs = (h.nearSex || h.inSex) && this.interior === "club";
+    h.sexTalk = this.sexTalk;
+    h.sexTalkEn = this.sexTalkEn;
+    h.sexKind = this.sexWith ? this.sexKind : "";
     h.nearDance = !this.drive && !this.danceWith && !h.nearSex && !!this.nearDancePed();
     h.inDance = !!this.danceWith;
     if (this.drive) h.enterVerb = "BİN";

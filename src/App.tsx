@@ -106,7 +106,7 @@ function Shell() {
           <div className="stage">
             <GameView input={inputRef.current} frozen={paused} muted={muted} character={character} onHud={onHud} gameRef={gameRef} />
           </div>
-          <HUD hud={hud} onTapMusic={() => bootAudio()} />
+          <HUD hud={hud} onTapMusic={() => bootAudio()} onSexAct={(k) => inputRef.current.queueAct(k)} />
           <TouchControls
             input={inputRef.current}
             hidden={!touch || paused}

@@ -1,7 +1,7 @@
 import { Mesh, MeshBuilder, Quaternion, Scene, Vector3 } from "@babylonjs/core";
 import { facadeMat, flareTex, makeDecal, makeGraffiti, makeSign, mat, metalMat, uniqueMat, webSuitMat } from "./art";
 import { clamp } from "./constants";
-import type { CharacterId } from "./types";
+import type { CharacterId, SexKind } from "./types";
 
 export { facadeMat, flareTex, makeDecal, makeSign, mat, uniqueMat } from "./art";
 export type { BuildingStyle } from "./types";
@@ -647,6 +647,10 @@ type Kit = {
   mask?: boolean;
   lens?: string;
   heels?: boolean;
+  lingerie?: boolean;
+  nude?: boolean;
+  makeup?: boolean;
+  figure?: "woman" | "man";
 };
 
 function limb(scene: Scene, root: Mesh, name: string, x: number, y: number, dia: number, h: number, hex: string): Mesh {
@@ -660,19 +664,37 @@ function limb(scene: Scene, root: Mesh, name: string, x: number, y: number, dia:
   return piv;
 }
 
-function face(scene: Scene, root: Mesh, y: number, z: number) {
-  const le = MeshBuilder.CreateSphere("eye", { diameter: 0.075, segments: 6 }, scene);
-  le.position.set(-0.075, y, z);
-  le.material = mat(scene, "#f4f4f0", 0.2);
+function face(scene: Scene, root: Mesh, y: number, z: number, glam = false) {
+  const eyeD = glam ? 0.082 : 0.075;
+  const le = MeshBuilder.CreateSphere("eye", { diameter: eyeD, segments: 6 }, scene);
+  le.position.set(-0.078, y, z);
+  le.material = mat(scene, "#f4f4f0", 0.28);
   le.parent = root;
-  const re = MeshBuilder.CreateSphere("eye", { diameter: 0.075, segments: 6 }, scene);
-  re.position.set(0.075, y, z);
-  re.material = mat(scene, "#f4f4f0", 0.2);
+  const re = MeshBuilder.CreateSphere("eye", { diameter: eyeD, segments: 6 }, scene);
+  re.position.set(0.078, y, z);
+  re.material = mat(scene, "#f4f4f0", 0.28);
   re.parent = root;
-  box(scene, root, "pup", 0.03, 0.03, 0.02, -0.075, y, z + 0.03, "#1a1410");
-  box(scene, root, "pup", 0.03, 0.03, 0.02, 0.075, y, z + 0.03, "#1a1410");
-  box(scene, root, "brow", 0.22, 0.025, 0.03, 0, y + 0.07, z, "#2a2018");
-  box(scene, root, "mouth", 0.13, 0.03, 0.02, 0, y - 0.1, z, "#5a3030");
+  box(scene, root, "pup", 0.032, 0.032, 0.02, -0.078, y, z + 0.032, "#1a1410");
+  box(scene, root, "pup", 0.032, 0.032, 0.02, 0.078, y, z + 0.032, "#1a1410");
+  box(scene, root, "brow", glam ? 0.26 : 0.22, glam ? 0.018 : 0.025, 0.03, 0, y + 0.072, z, glam ? "#1a1014" : "#2a2018");
+  if (glam) {
+    box(scene, root, "lash", 0.1, 0.016, 0.02, -0.078, y + 0.042, z + 0.02, "#12080c");
+    box(scene, root, "lash", 0.1, 0.016, 0.02, 0.078, y + 0.042, z + 0.02, "#12080c");
+    const blushL = MeshBuilder.CreateSphere("blush", { diameter: 0.09, segments: 5 }, scene);
+    blushL.position.set(-0.12, y - 0.04, z - 0.02);
+    blushL.scaling.set(1.2, 0.55, 0.4);
+    blushL.material = mat(scene, "#e07080", 0.12);
+    blushL.parent = root;
+    const blushR = MeshBuilder.CreateSphere("blush", { diameter: 0.09, segments: 5 }, scene);
+    blushR.position.set(0.12, y - 0.04, z - 0.02);
+    blushR.scaling.set(1.2, 0.55, 0.4);
+    blushR.material = mat(scene, "#e07080", 0.12);
+    blushR.parent = root;
+    box(scene, root, "mouth", 0.16, 0.045, 0.03, 0, y - 0.105, z + 0.01, "#c02848", 0.18);
+    box(scene, root, "lip", 0.1, 0.016, 0.02, 0, y - 0.088, z + 0.02, "#ff6a88", 0.22);
+  } else {
+    box(scene, root, "mouth", 0.13, 0.03, 0.02, 0, y - 0.1, z, "#5a3030");
+  }
 }
 
 function hairOn(scene: Scene, root: Mesh, style: Hair, hex: string, headY: number) {
@@ -725,33 +747,84 @@ function hairOn(scene: Scene, root: Mesh, style: Hair, hex: string, headY: numbe
 
 function assemblePerson(scene: Scene, kit: Kit): Mesh {
   const root = new Mesh(kit.name, scene);
+  const woman = kit.figure === "woman" || !!(kit.heels || kit.crop || kit.lingerie || kit.nude || kit.makeup);
   const sx = kit.sx;
   const sy = kit.sy;
-  const tw = 0.46 * sx;
-  const td = 0.28 * sx;
-  const th = (kit.crop ? 0.36 : 0.52) * sy;
-  const torsoY = (kit.crop ? 1.24 : 1.28) * sy;
+  const tw = (woman ? 0.42 : 0.46) * sx;
+  const td = (woman ? 0.26 : 0.28) * sx;
+  const th = (kit.crop || kit.nude ? 0.34 : 0.52) * sy;
+  const torsoY = (kit.crop || kit.nude ? 1.26 : 1.28) * sy;
   const pelvisY = 0.9 * sy;
   const hipY = 0.82 * sy;
   const headY = 1.66 * sy;
   const skin = kit.skin;
+  const bodyHex = kit.nude ? skin : kit.torso;
+  const hipHex = kit.nude ? skin : (kit.skirt || kit.pelvis);
+  const hipW = woman ? tw * 1.28 : tw * 0.9;
 
-  box(scene, root, "pelvis", tw * 0.9, 0.2 * sy, td * 0.95, 0, pelvisY, 0, kit.skirt || kit.pelvis);
-  if (kit.shirt) box(scene, root, "tee", tw * 0.88, 0.16, td * 0.88, 0, torsoY - th * 0.42, 0, kit.shirt);
+  box(scene, root, "pelvis", hipW, 0.22 * sy, td * (woman ? 1.12 : 0.95), 0, pelvisY, 0, hipHex);
+  if (woman) {
+    const hipL = MeshBuilder.CreateSphere("hipL", { diameter: 0.26, segments: 7 }, scene);
+    hipL.position.set(-0.16 * sx, pelvisY - 0.02, 0.02);
+    hipL.scaling.set(1.15, 0.85, 1.05);
+    hipL.material = mat(scene, hipHex);
+    hipL.parent = root;
+    const hipR = MeshBuilder.CreateSphere("hipR", { diameter: 0.26, segments: 7 }, scene);
+    hipR.position.set(0.16 * sx, pelvisY - 0.02, 0.02);
+    hipR.scaling.set(1.15, 0.85, 1.05);
+    hipR.material = mat(scene, hipHex);
+    hipR.parent = root;
+    box(scene, root, "waist", tw * 0.62, 0.1, td * 0.72, 0, pelvisY + 0.16 * sy, 0, skin);
+  }
+  if (kit.shirt && !kit.nude) box(scene, root, "tee", tw * 0.88, 0.16, td * 0.88, 0, torsoY - th * 0.42, 0, kit.shirt);
   const torso = MeshBuilder.CreateSphere("torso", { diameter: 1, segments: 8 }, scene);
-  torso.scaling.set(tw, th, td);
+  torso.scaling.set(woman ? tw * 0.95 : tw, th, td);
   torso.position.y = torsoY;
-  torso.material = mat(scene, kit.torso, kit.torsoE ?? 0);
+  torso.material = mat(scene, bodyHex, kit.torsoE ?? 0);
   torso.parent = root;
+  if (woman) {
+    const bust = kit.nude ? 0.24 : 0.21;
+    const bustL = MeshBuilder.CreateSphere("bustL", { diameter: bust, segments: 8 }, scene);
+    bustL.position.set(-0.11 * sx, torsoY + th * 0.02, td * 0.46);
+    bustL.scaling.set(1.2, 0.92, 1.08);
+    bustL.material = mat(scene, bodyHex, kit.nude ? 0.04 : (kit.torsoE ?? 0));
+    bustL.parent = root;
+    const bustR = MeshBuilder.CreateSphere("bustR", { diameter: bust, segments: 8 }, scene);
+    bustR.position.set(0.11 * sx, torsoY + th * 0.02, td * 0.46);
+    bustR.scaling.set(1.2, 0.92, 1.08);
+    bustR.material = mat(scene, bodyHex, kit.nude ? 0.04 : (kit.torsoE ?? 0));
+    bustR.parent = root;
+  }
   if (kit.vest) box(scene, root, "vest", tw * 1.08, th * 0.85, td * 1.1, 0, torsoY, 0, kit.vest, 0.05);
   if (kit.glow) {
     box(scene, root, "trim", tw * 1.04, 0.05, td * 1.04, 0, torsoY + th * 0.42, 0, kit.glow, 0.65);
     box(scene, root, "trim2", 0.05, th * 0.8, td * 1.04, -tw * 0.52, torsoY, 0, kit.glow, 0.45);
   }
-  if (kit.crop) box(scene, root, "mid", tw * 0.7, 0.14, td * 0.7, 0, torsoY - th * 0.62, 0, skin);
+  if (kit.crop && !kit.nude) box(scene, root, "mid", tw * 0.7, 0.14, td * 0.7, 0, torsoY - th * 0.62, 0, skin);
+  if (kit.lingerie || kit.nude) {
+    const strap = kit.glow || "#ff4da6";
+    box(scene, root, "strapL", 0.035, 0.28 * sy, 0.03, -0.1 * sx, torsoY + th * 0.42, td * 0.2, strap, 0.4);
+    box(scene, root, "strapR", 0.035, 0.28 * sy, 0.03, 0.1 * sx, torsoY + th * 0.42, td * 0.2, strap, 0.4);
+    box(scene, root, "band", hipW * 0.85, 0.03, td * 1.05, 0, pelvisY + 0.08, 0, strap, 0.35);
+    if (kit.nude) {
+      const pL = MeshBuilder.CreateSphere("pL", { diameter: 0.055, segments: 5 }, scene);
+      pL.position.set(-0.11 * sx, torsoY + th * 0.02, td * 0.58);
+      pL.material = mat(scene, strap, 0.55);
+      pL.parent = root;
+      const pR = MeshBuilder.CreateSphere("pR", { diameter: 0.055, segments: 5 }, scene);
+      pR.position.set(0.11 * sx, torsoY + th * 0.02, td * 0.58);
+      pR.material = mat(scene, strap, 0.55);
+      pR.parent = root;
+    } else {
+      box(scene, root, "triL", 0.12, 0.08, 0.04, -0.1 * sx, torsoY + 0.02, td * 0.52, strap, 0.2);
+      box(scene, root, "triR", 0.12, 0.08, 0.04, 0.1 * sx, torsoY + 0.02, td * 0.52, strap, 0.2);
+    }
+    box(scene, root, "garterL", 0.03, 0.16 * sy, 0.03, -0.14 * sx, hipY - 0.12, 0.04, strap, 0.3);
+    box(scene, root, "garterR", 0.03, 0.16 * sy, 0.03, 0.14 * sx, hipY - 0.12, 0.04, strap, 0.3);
+  }
 
   cyl(scene, root, "nk", 0.13 * sy, kit.neck, 0, headY - 0.2 * sy, 0, kit.mask ? kit.torso : skin, 7);
-  const head = MeshBuilder.CreateSphere("hd", { diameter: 0.36, segments: 8 }, scene);
+  const head = MeshBuilder.CreateSphere("hd", { diameter: woman ? 0.34 : 0.36, segments: 8 }, scene);
   head.position.y = headY;
   head.material = mat(scene, kit.mask ? kit.torso : skin, kit.mask ? 0.08 : 0);
   head.parent = root;
@@ -761,16 +834,18 @@ function assemblePerson(scene: Scene, kit: Kit): Mesh {
     box(scene, root, "shootL", 0.08, 0.06, 0.1, -tw * 0.52, torsoY + th * 0.05, 0.08, "#111114", 0.2);
     box(scene, root, "shootR", 0.08, 0.06, 0.1, tw * 0.52, torsoY + th * 0.05, 0.08, "#111114", 0.2);
   } else {
-    face(scene, root, headY + 0.02, 0.155);
+    face(scene, root, headY + 0.02, 0.155, !!(kit.makeup || woman));
     hairOn(scene, root, kit.hairStyle, kit.hair, headY);
   }
 
   const armH = 0.52 * sy;
   const legH = (kit.shorts ? 0.38 : 0.72) * sy;
-  limb(scene, root, "larm", -tw * 0.5 - 0.08, torsoY + th * 0.35, 0.13, armH, kit.torso);
-  limb(scene, root, "rarm", tw * 0.5 + 0.08, torsoY + th * 0.35, 0.13, armH, kit.torso);
-  const ll = limb(scene, root, "lleg", -0.14 * sx, hipY, 0.17, legH, kit.legs);
-  const rl = limb(scene, root, "rleg", 0.14 * sx, hipY, 0.17, legH, kit.legs);
+  const armHex = kit.nude ? skin : kit.torso;
+  const legHex = kit.nude ? skin : kit.legs;
+  limb(scene, root, "larm", -tw * 0.5 - 0.08, torsoY + th * 0.35, woman ? 0.12 : 0.13, armH, armHex);
+  limb(scene, root, "rarm", tw * 0.5 + 0.08, torsoY + th * 0.35, woman ? 0.12 : 0.13, armH, armHex);
+  const ll = limb(scene, root, "lleg", (woman ? -0.17 : -0.14) * sx, hipY, woman ? 0.16 : 0.17, legH, legHex);
+  const rl = limb(scene, root, "rleg", (woman ? 0.17 : 0.14) * sx, hipY, woman ? 0.16 : 0.17, legH, legHex);
   if (kit.heels) {
     box(scene, ll, "shoe", 0.16, 0.08, 0.26, 0, -legH - 0.02, 0.06, kit.shoes);
     box(scene, rl, "shoe", 0.16, 0.08, 0.26, 0, -legH - 0.02, 0.06, kit.shoes);
@@ -892,12 +967,12 @@ const PED_KITS: Omit<Kit, "name" | "sx" | "sy" | "neck">[] = [
 ];
 
 const WOMAN_KITS: Omit<Kit, "name" | "sx" | "sy" | "neck">[] = [
-  { skin: "#e8c4a0", torso: "#ff4da6", pelvis: "#1a1018", legs: "#e8c4a0", shoes: "#1a1a1a", hair: "#1a1210", hairStyle: "long", skirt: "#2a1020", crop: true, heels: true, earring: true },
-  { skin: "#c09060", torso: "#f0d080", pelvis: "#3a1828", legs: "#c09060", shoes: "#f2e6c0", hair: "#3a2010", hairStyle: "bun", skirt: "#8a2040", heels: true, earring: true },
-  { skin: "#f0d0b0", torso: "#2ef2d0", pelvis: "#102028", legs: "#f0d0b0", shoes: "#1a1a22", hair: "#f0d080", hairStyle: "long", skirt: "#143038", crop: true, heels: true, glow: "#2ef2d0" },
-  { skin: "#d4a070", torso: "#b46aff", pelvis: "#201028", legs: "#d4a070", shoes: "#2a1a18", hair: "#201810", hairStyle: "messy", skirt: "#4a2060", heels: true, chain: true },
-  { skin: "#f5d8c4", torso: "#ff8a3d", pelvis: "#3a2010", legs: "#f5d8c4", shoes: "#1a1010", hair: "#2a1820", hairStyle: "bun", skirt: "#c45a20", crop: true, heels: true, earring: true },
-  { skin: "#c4a080", torso: "#e8e0d0", pelvis: "#8a2040", legs: "#c4a080", shoes: "#f0e0e0", hair: "#4a3020", hairStyle: "long", skirt: "#c03050", heels: true },
+  { skin: "#e8c4a0", torso: "#ff4da6", pelvis: "#1a1018", legs: "#e8c4a0", shoes: "#1a1a1a", hair: "#1a1210", hairStyle: "long", skirt: "#2a1020", crop: true, heels: true, earring: true, lingerie: true, makeup: true, figure: "woman" },
+  { skin: "#c09060", torso: "#f0d080", pelvis: "#3a1828", legs: "#c09060", shoes: "#f2e6c0", hair: "#3a2010", hairStyle: "bun", skirt: "#8a2040", heels: true, earring: true, lingerie: true, makeup: true, figure: "woman" },
+  { skin: "#f0d0b0", torso: "#2ef2d0", pelvis: "#102028", legs: "#f0d0b0", shoes: "#1a1a22", hair: "#f0d080", hairStyle: "long", skirt: "#143038", crop: true, heels: true, glow: "#2ef2d0", lingerie: true, makeup: true, figure: "woman" },
+  { skin: "#d4a070", torso: "#b46aff", pelvis: "#201028", legs: "#d4a070", shoes: "#2a1a18", hair: "#201810", hairStyle: "messy", skirt: "#4a2060", heels: true, chain: true, lingerie: true, makeup: true, figure: "woman" },
+  { skin: "#f5d8c4", torso: "#ff8a3d", pelvis: "#3a2010", legs: "#f5d8c4", shoes: "#1a1010", hair: "#2a1820", hairStyle: "bun", skirt: "#c45a20", crop: true, heels: true, earring: true, lingerie: true, makeup: true, figure: "woman" },
+  { skin: "#c4a080", torso: "#e8e0d0", pelvis: "#8a2040", legs: "#c4a080", shoes: "#f0e0e0", hair: "#4a3020", hairStyle: "long", skirt: "#c03050", heels: true, lingerie: true, makeup: true, figure: "woman" },
 ];
 
 export function makePed(scene: Scene, seed: number): Mesh {
@@ -911,8 +986,8 @@ export function makePed(scene: Scene, seed: number): Mesh {
 
 export function makeWoman(scene: Scene, seed: number, night = false): Mesh {
   const k = WOMAN_KITS[Math.abs(seed | 0) % WOMAN_KITS.length];
-  const sx = 0.9 + ((Math.abs(seed * 9) % 6) * 0.01);
-  const sy = 1.01 + ((Math.abs(seed * 3) % 4) * 0.008);
+  const sx = 0.94 + ((Math.abs(seed * 9) % 6) * 0.012);
+  const sy = 1.012 + ((Math.abs(seed * 3) % 4) * 0.006);
   return assemblePerson(scene, {
     ...k,
     name: (night ? "night" : "woman") + seed,
@@ -921,6 +996,10 @@ export function makeWoman(scene: Scene, seed: number, night = false): Mesh {
     neck: 0.12,
     glow: night ? (k.glow || "#ff4da6") : k.glow,
     heels: true,
+    lingerie: true,
+    makeup: true,
+    figure: "woman",
+    nude: night && seed % 3 === 0,
   });
 }
 
@@ -929,12 +1008,16 @@ export function makeDancer(scene: Scene, seed: number): Mesh {
   return assemblePerson(scene, {
     ...k,
     name: "dancer" + seed,
-    sx: 0.92,
-    sy: 1.02,
+    sx: 0.96,
+    sy: 1.018,
     neck: 0.12,
     crop: true,
     heels: true,
     earring: true,
+    lingerie: true,
+    makeup: true,
+    figure: "woman",
+    nude: seed % 2 === 0,
     glow: seed % 2 ? "#ff4da6" : "#ffc83d",
   });
 }
@@ -1133,29 +1216,127 @@ export function tickSitPose(mesh: Mesh, t: number) {
 }
 
 export function tickSexPlayerPose(mesh: Mesh, t: number) {
+  tickSexPose(mesh, t, "seks", "player");
+}
+
+export function tickSexPartnerPose(mesh: Mesh, t: number) {
+  tickSexPose(mesh, t, "seks", "partner");
+}
+
+export function tickSexPose(mesh: Mesh, t: number, kind: SexKind, who: "player" | "partner") {
+  switch (kind) {
+    case "yat":
+      if (who === "player") poseYatPlayer(mesh, t);
+      else poseYatPartner(mesh, t);
+      break;
+    case "sakso":
+      if (who === "player") poseOralPlayer(mesh, t);
+      else poseOralPartner(mesh, t);
+      break;
+    case "seks":
+      if (who === "player") poseSeksPlayer(mesh, t);
+      else poseSeksPartner(mesh, t);
+      break;
+    default: {
+      const _never: never = kind;
+      void _never;
+    }
+  }
+}
+
+function poseSeksPlayer(mesh: Mesh, t: number) {
   const thrust = Math.sin(t * 9.2);
-  mesh.rotation.x = 1.18 + thrust * 0.06;
+  mesh.rotation.x = 1.18 + thrust * 0.08;
   mesh.rotation.z = 0;
-  mesh.position.y = 0.62 + Math.abs(thrust) * 0.03;
+  mesh.position.y = 0.62 + Math.abs(thrust) * 0.04;
   for (const ch of mesh.getChildMeshes(false)) {
     if (ch.name === "lleg") { ch.rotation.x = 1.05; ch.rotation.z = -0.28; }
     else if (ch.name === "rleg") { ch.rotation.x = 1.02; ch.rotation.z = 0.28; }
     else if (ch.name === "larm") { ch.rotation.x = -0.55; ch.rotation.z = -0.35; }
-    else if (ch.name === "rarm") { ch.rotation.x = -0.48 + thrust * 0.12; ch.rotation.z = 0.32; }
+    else if (ch.name === "rarm") { ch.rotation.x = -0.48 + thrust * 0.16; ch.rotation.z = 0.32; }
+    else if (ch.name === "hd") { ch.rotation.x = 0.12 + thrust * 0.04; }
   }
 }
 
-export function tickSexPartnerPose(mesh: Mesh, t: number) {
+function poseSeksPartner(mesh: Mesh, t: number) {
   const thrust = Math.sin(t * 9.2);
-  const sway = Math.sin(t * 4.6) * 0.08;
-  mesh.rotation.x = 0.42 + thrust * 0.18;
+  const sway = Math.sin(t * 4.6) * 0.1;
+  mesh.rotation.x = 0.38 + thrust * 0.22;
   mesh.rotation.z = sway;
-  mesh.position.y = 0.92 + thrust * 0.16;
+  mesh.position.y = 0.94 + thrust * 0.18;
   for (const ch of mesh.getChildMeshes(false)) {
-    if (ch.name === "lleg") { ch.rotation.x = 0.85 + thrust * 0.2; ch.rotation.z = -0.42; }
-    else if (ch.name === "rleg") { ch.rotation.x = 0.82 + thrust * 0.2; ch.rotation.z = 0.42; }
+    if (ch.name === "lleg") { ch.rotation.x = 0.85 + thrust * 0.24; ch.rotation.z = -0.46; }
+    else if (ch.name === "rleg") { ch.rotation.x = 0.82 + thrust * 0.24; ch.rotation.z = 0.46; }
     else if (ch.name === "larm") { ch.rotation.x = -1.55; ch.rotation.z = -0.55; }
     else if (ch.name === "rarm") { ch.rotation.x = -1.35; ch.rotation.z = 0.5; }
+    else if (ch.name === "hd") { ch.rotation.x = -0.18 + thrust * 0.12; ch.rotation.z = sway * 0.4; }
+  }
+}
+
+function poseYatPlayer(mesh: Mesh, t: number) {
+  const grind = Math.sin(t * 5.6);
+  mesh.rotation.x = 1.48 + grind * 0.05;
+  mesh.rotation.z = Math.sin(t * 2.1) * 0.03;
+  mesh.position.y = 0.56 + Math.abs(grind) * 0.03;
+  for (const ch of mesh.getChildMeshes(false)) {
+    if (ch.name === "lleg") { ch.rotation.x = 0.28; ch.rotation.z = -0.18; }
+    else if (ch.name === "rleg") { ch.rotation.x = 0.22; ch.rotation.z = 0.2; }
+    else if (ch.name === "larm") { ch.rotation.x = -0.85; ch.rotation.z = -0.42; }
+    else if (ch.name === "rarm") { ch.rotation.x = -0.7 + grind * 0.1; ch.rotation.z = 0.38; }
+    else if (ch.name === "hd") { ch.rotation.x = 0.22; }
+  }
+}
+
+function poseYatPartner(mesh: Mesh, t: number) {
+  const grind = Math.sin(t * 5.6);
+  mesh.rotation.x = 1.36 + grind * 0.1;
+  mesh.rotation.z = Math.sin(t * 2.4) * 0.08;
+  mesh.position.y = 0.78 + grind * 0.07;
+  for (const ch of mesh.getChildMeshes(false)) {
+    if (ch.name === "lleg") { ch.rotation.x = 0.55 + grind * 0.12; ch.rotation.z = -0.35; }
+    else if (ch.name === "rleg") { ch.rotation.x = 0.48 + grind * 0.12; ch.rotation.z = 0.38; }
+    else if (ch.name === "larm") { ch.rotation.x = -1.65; ch.rotation.z = -0.28; }
+    else if (ch.name === "rarm") { ch.rotation.x = -1.45; ch.rotation.z = 0.32; }
+    else if (ch.name === "hd") { ch.rotation.x = 0.28 + grind * 0.08; }
+  }
+}
+
+function poseOralPlayer(mesh: Mesh, t: number) {
+  const pulse = Math.sin(t * 7.1);
+  mesh.rotation.x = 0.18 + pulse * 0.03;
+  mesh.rotation.z = 0;
+  mesh.position.y = 0.58;
+  for (const ch of mesh.getChildMeshes(false)) {
+    if (ch.name === "lleg") { ch.rotation.x = 1.22; ch.rotation.z = -0.12; }
+    else if (ch.name === "rleg") { ch.rotation.x = 1.18; ch.rotation.z = 0.12; }
+    else if (ch.name === "larm") { ch.rotation.x = -0.35; ch.rotation.z = -0.18; }
+    else if (ch.name === "rarm") { ch.rotation.x = -0.42 + pulse * 0.08; ch.rotation.z = 0.16; }
+    else if (ch.name === "hd") { ch.rotation.x = 0.18; }
+  }
+}
+
+function poseOralPartner(mesh: Mesh, t: number) {
+  const bob = Math.sin(t * 7.4);
+  mesh.rotation.x = 0.42 + bob * 0.28;
+  mesh.rotation.z = Math.sin(t * 3.1) * 0.05;
+  mesh.position.y = 0.36 + Math.abs(bob) * 0.05;
+  for (const ch of mesh.getChildMeshes(false)) {
+    if (ch.name === "lleg") { ch.rotation.x = 1.35; ch.rotation.z = -0.22; }
+    else if (ch.name === "rleg") { ch.rotation.x = 1.32; ch.rotation.z = 0.22; }
+    else if (ch.name === "larm") { ch.rotation.x = -0.85; ch.rotation.z = -0.45; }
+    else if (ch.name === "rarm") { ch.rotation.x = -0.75; ch.rotation.z = 0.42; }
+    else if (ch.name === "hd") { ch.rotation.x = 0.55 + bob * 0.35; }
+  }
+}
+
+export function resetBodyPose(mesh: Mesh) {
+  mesh.rotation.x = 0;
+  mesh.rotation.z = 0;
+  for (const ch of mesh.getChildMeshes(false)) {
+    if (ch.name === "larm" || ch.name === "rarm" || ch.name === "lleg" || ch.name === "rleg" || ch.name === "hd") {
+      ch.rotation.x = 0;
+      ch.rotation.z = 0;
+    }
   }
 }
 
