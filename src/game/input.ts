@@ -21,6 +21,7 @@ export class Input {
   swingHeld = false;
   zipHeld = false;
   zipPressed = false;
+  climbHeld = false;
 
   stickActive = false;
   stickBaseX = 0;
@@ -38,6 +39,8 @@ export class Input {
   private swingTouch = false;
   private zipTouch = false;
   private zipId: number | null = null;
+  private climbTouch = false;
+  private climbId: number | null = null;
   private zipWas = false;
   private sprintHeld = false;
   private jumpTouch = false;
@@ -45,6 +48,7 @@ export class Input {
   private livePointers = new Set<number>();
   private shootId: number | null = null;
   private enterId: number | null = null;
+  private swingId: number | null = null;
   private sprintId: number | null = null;
   private jumpId: number | null = null;
   private brakeId: number | null = null;
@@ -148,11 +152,11 @@ export class Input {
     this.keys.clear();
     this.clearStick();
     this.shootHeld = this.enterTouch = this.sprintHeld = this.jumpTouch = this.brakeHeld = false;
-    this.swingTouch = this.zipTouch = false;
+    this.swingTouch = this.zipTouch = this.climbTouch = false;
     this.mouseHeld = false;
     this.rightHeld = false;
     this.livePointers.clear();
-    this.shootId = this.enterId = this.sprintId = this.jumpId = this.brakeId = this.lookId = this.zipId = null;
+    this.shootId = this.enterId = this.swingId = this.sprintId = this.jumpId = this.brakeId = this.lookId = this.zipId = this.climbId = null;
   };
 
   private onWindowPointerUp = (e: PointerEvent) => {
@@ -181,7 +185,8 @@ export class Input {
     this.sprint = this.down("shift") || this.sprintHeld;
     this.jumpHeld = this.down("space") || this.jumpTouch;
     this.enterHeld = this.enterTouch || this.down("f");
-    this.swingHeld = this.down("f") || this.swingTouch;
+    this.swingHeld = this.swingTouch || this.down("f");
+    this.climbHeld = this.climbTouch || this.down("c");
     this.zipHeld = this.down("e") || this.zipTouch;
     this.zipPressed = (!this.zipWas && this.zipTouch) || this.edge("e");
     if (this.down("q")) this.lookDX -= 22;
@@ -223,12 +228,14 @@ export class Input {
   private down(k: string) { return this.keys.has(k); }
   private edge(k: string) { return this.keys.has(k) && !this.prev.has(k); }
 
-  onPointerDown(e: PointerEvent, hit: "stick" | "shoot" | "enter" | "jump" | "sprint" | "brake" | "look" | "reload" | "melee" | "swing" | "zip" | "none") {
+  onPointerDown(e: PointerEvent, hit: "stick" | "shoot" | "enter" | "jump" | "sprint" | "brake" | "look" | "reload" | "melee" | "swing" | "zip" | "climb" | "none") {
     this.showTouch = true;
     this.livePointers.add(e.pointerId);
     if (e.pointerType === "touch") this.showTouch = true;
     if (hit === "shoot") { this.shootHeld = true; this.shootId = e.pointerId; this.cap(e); return; }
-    if (hit === "enter" || hit === "swing") { this.enterTouch = true; this.swingTouch = true; this.enterId = e.pointerId; this.cap(e); return; }
+    if (hit === "enter") { this.enterTouch = true; this.enterId = e.pointerId; this.cap(e); return; }
+    if (hit === "swing") { this.swingTouch = true; this.swingId = e.pointerId; this.cap(e); return; }
+    if (hit === "climb") { this.climbTouch = true; this.climbId = e.pointerId; this.cap(e); return; }
     if (hit === "zip") { this.zipTouch = true; this.zipId = e.pointerId; this.cap(e); return; }
     if (hit === "jump") { this.jumpTouch = true; this.jumpId = e.pointerId; this.cap(e); return; }
     if (hit === "sprint") { this.sprintHeld = true; this.sprintId = e.pointerId; this.cap(e); return; }
@@ -285,7 +292,9 @@ export class Input {
     this.livePointers.delete(e.pointerId);
     if (e.pointerId === this.stickId) this.clearStick();
     if (e.pointerId === this.shootId) { this.shootHeld = false; this.shootId = null; }
-    if (e.pointerId === this.enterId) { this.enterTouch = false; this.swingTouch = false; this.enterId = null; }
+    if (e.pointerId === this.enterId) { this.enterTouch = false; this.enterId = null; }
+    if (e.pointerId === this.swingId) { this.swingTouch = false; this.swingId = null; }
+    if (e.pointerId === this.climbId) { this.climbTouch = false; this.climbId = null; }
     if (e.pointerId === this.zipId) { this.zipTouch = false; this.zipId = null; }
     if (e.pointerId === this.sprintId) { this.sprintHeld = false; this.sprintId = null; }
     if (e.pointerId === this.jumpId) { this.jumpTouch = false; this.jumpId = null; }

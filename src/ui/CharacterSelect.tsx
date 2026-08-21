@@ -22,7 +22,7 @@ export function CharacterSelect({ onPick }: Props) {
             );
           })}
         </div>
-        <p className="select-hint">Phone: left stick · right look · SALIN / ZIP / ATEŞ. Desktop: WASD · mouse look (no lock) · hold F SALIN · E ZIP · click ATEŞ · Space jump</p>
+        <p className="select-hint">Phone: left stick · right look · SALIN / ZIP / ATEŞ · TIRMAN · BİN. Desktop: WASD · mouse look · hold F SALIN · E ZIP · C TIRMAN · F BİN near a car · Space jump</p>
       </div>
     </div>
   );
@@ -31,9 +31,11 @@ export function CharacterSelect({ onPick }: Props) {
 function CharFig({ id }: { id: CharacterId }) {
   return (
     <i className={"char-fig fig-" + id} aria-hidden>
+      <i className="cf-cowl" />
       <i className="cf-helm" />
       <i className="cf-visor" />
       <i className="cf-torso" />
+      <i className="cf-web" />
       <i className="cf-arm l" />
       <i className="cf-arm r" />
       <i className="cf-legs" />

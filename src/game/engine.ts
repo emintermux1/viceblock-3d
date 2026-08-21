@@ -13,9 +13,9 @@ import {
   clamp, dist2,
 } from "./constants";
 import type { Input } from "./input";
-import { flareTex, lookDir, makeCar, makeCop, makeHero, makePed, makeSilk, mat, placeSilk, tickSwingPose, tickWalk } from "./meshes";
+import { flareTex, lookDir, makeCar, makeCop, makeHero, makePed, makeSilk, mat, placeSilk, tickCrawlPose, tickSwingPose, tickWalk } from "./meshes";
 import {
-  nearestWall, pickAnchor, roofY, stepAir, stepSwing, stepZip, SWING_MAX, type Anchor, type SwingRope,
+  nearestWall, pickAnchor, standY, stepAir, stepSwing, stepZip, unstickPlayer, type Anchor, type SwingRope,
 } from "./swing";
 import type { AABB, CharacterId, CopState, HudState, InteriorId, MissionId, MoveMode, PedState } from "./types";
 import { emptyHud, pointInAABB } from "./types";
@@ -54,7 +54,7 @@ export class ViceGame {
   mode: MoveMode = "ground";
   private rope: SwingRope | null = null;
   private zipTo: Anchor | null = null;
-  private crawlN: { nx: number; nz: number } | null = null;
+  private crawlN: { nx: number; nz: number; maxY: number } | null = null;
   private silk!: Mesh;
   private aimOrb!: Mesh;
   private aim: Anchor | null = null;
@@ -304,9 +304,9 @@ export class ViceGame {
       }
     }
 
-    if (this.input.enterPressed && this.enterLock <= 0 && this.interior === "jail") this.tryEnterExit();
     this.tickHotwire(dt);
     if (this.interior === "jail") {
+      if (this.input.enterPressed && this.enterLock <= 0) this.tryEnterExit();
       this.tickJail(dt);
       this.walkFree(dt, 0.7);
       this.mode = "ground";
@@ -328,13 +328,21 @@ export class ViceGame {
     this.wantedDecay(dt);
     this.saveAcc += dt;
     if (this.saveAcc > 4) { this.saveAcc = 0; this.persist(); }
-    sharedSfx.engineDrive(false, 0);
+    sharedSfx.engineDrive(!!this.drive && !this.drive.wrecked, this.drive?.speed ?? 0);
     sharedSfx.sirenOn(this.stars > 0 && this.cops.some((c) => c.state === "chase"));
   }
 
   private locomote(dt: number) {
     const p = this.player;
     const ins = this.input;
+
+    if (this.drive) {
+      if (ins.enterPressed && this.enterLock <= 0) this.tryEnterExit();
+      if (this.drive) this.driveCar(dt);
+      this.silk.setEnabled(false);
+      this.aim = null;
+      return;
+    }
 
     if (this.interior !== "street") {
       this.walkFree(dt, 1);
@@ -343,6 +351,13 @@ export class ViceGame {
       this.zipTo = null;
       this.silk.setEnabled(false);
       return;
+    }
+
+    const nearCar = this.nearestCar(2.7);
+    const streetBin = !!nearCar && this.mode === "ground" && p.y < 1.35;
+    if (streetBin && this.enterLock <= 0 && ins.enterPressed) {
+      this.tryEnterExit();
+      if (this.drive) return;
     }
 
     this.aim = pickAnchor(
@@ -358,6 +373,8 @@ export class ViceGame {
         this.drawSilk(this.zipTo.x, this.zipTo.y, this.zipTo.z);
         this.clampWorld();
         this.collideBuildings();
+        const stuck = unstickPlayer(p, this.city.colliders);
+        if (stuck === "roof") this.landOn(standY(p.x, p.z, this.city.colliders));
         if (done) {
           this.zipTo = null;
           this.rope = null;
@@ -374,8 +391,8 @@ export class ViceGame {
       return;
     }
 
-    const wantSwing = ins.swingHeld || ins.jumpHeld;
-    if (ins.zipPressed && this.aim) {
+    const wantSwing = !streetBin && (ins.swingHeld || (ins.jumpHeld && this.mode !== "ground"));
+    if (ins.zipPressed && this.aim && !streetBin) {
       this.zipTo = { ...this.aim };
       this.mode = "zip";
       this.rope = {
@@ -399,6 +416,7 @@ export class ViceGame {
         this.drawSilk(this.rope.ax, this.rope.ay, this.rope.az);
         this.clampWorld();
         this.collideBuildings();
+        unstickPlayer(p, this.city.colliders);
         this.maybeLand();
         this.maybeCrawl();
         this.faceVelocity();
@@ -408,6 +426,7 @@ export class ViceGame {
 
     if (this.mode === "ground") {
       this.walkRooftops(dt);
+      if (this.tryStartClimb()) return;
       if (ins.jumpPressed) {
         p.vy = JUMP_VEL;
         p.grounded = false;
@@ -425,6 +444,8 @@ export class ViceGame {
     this.clampWorld();
     if (wantSwing && this.aim) this.attachSwing();
     this.collideBuildings();
+    const stuck = unstickPlayer(p, this.city.colliders);
+    if (stuck === "roof") this.landOn(standY(p.x, p.z, this.city.colliders));
     this.maybeLand();
     this.maybeCrawl();
     this.faceVelocity();
@@ -482,21 +503,26 @@ export class ViceGame {
     p.vx = vx;
     p.vz = vz;
     p.vy = 0;
+    const stuck = unstickPlayer(p, this.city.colliders);
+    if (stuck === "roof") p.y = standY(p.x, p.z, this.city.colliders);
+    const floor = standY(p.x, p.z, this.city.colliders);
+    const onRoof = floor > 0.4 && p.y >= floor - 0.9;
     const nx = p.x + vx * dt;
     const nz = p.z + vz * dt;
-    const floor = roofY(p.x, p.z, this.city.colliders);
-    const next = roofY(nx, nz, this.city.colliders);
-    if (floor > 0.45 && floor - next > 1.35) {
-      p.x = nx;
-      p.z = nz;
-      p.y = floor;
-      p.grounded = false;
-      this.mode = "air";
-    } else if (next > 0.15) {
-      p.x = clamp(nx, -94, 94);
-      p.z = clamp(nz, -80, 96);
-      p.y = next;
-      p.grounded = true;
+    if (onRoof) {
+      const next = standY(nx, nz, this.city.colliders);
+      if (next > 0.35 && floor - next < 2.2) {
+        p.x = clamp(nx, -94, 94);
+        p.z = clamp(nz, -80, 96);
+        p.y = next;
+        p.grounded = true;
+      } else {
+        p.x = nx;
+        p.z = nz;
+        p.y = floor;
+        p.grounded = false;
+        this.mode = "air";
+      }
     } else {
       if (!this.blocked(nx, p.z, PLAYER_R) && this.walkable(nx, p.z)) p.x = nx;
       if (!this.blocked(p.x, nz, PLAYER_R) && this.walkable(p.x, nz)) p.z = nz;
@@ -512,15 +538,20 @@ export class ViceGame {
     this.stepT -= dt;
     if (moving && this.stepT <= 0) {
       this.stepT = 0.36;
-      sharedSfx.footstep(this.surfaceRate());
+      sharedSfx.footstep(onRoof ? 0.7 : this.surfaceRate());
     }
   }
 
   private collideBuildings() {
     const p = this.player;
     for (const b of this.city.colliders) {
-      if (p.y >= b.maxY - 0.12) continue;
+      if (p.y >= b.maxY - 0.18) continue;
       if (p.x < b.minX - 0.48 || p.x > b.maxX + 0.48 || p.z < b.minZ - 0.48 || p.z > b.maxZ + 0.48) continue;
+      if (p.y >= b.maxY - 1.35 && p.x > b.minX && p.x < b.maxX && p.z > b.minZ && p.z < b.maxZ) {
+        p.y = b.maxY;
+        if (p.vy < 0) p.vy = 0;
+        continue;
+      }
       const left = p.x - b.minX;
       const right = b.maxX - p.x;
       const back = p.z - b.minZ;
@@ -533,65 +564,109 @@ export class ViceGame {
     }
   }
 
+  private landOn(floor: number) {
+    const p = this.player;
+    p.y = floor;
+    p.vy = 0;
+    p.grounded = true;
+    this.mode = "ground";
+    this.rope = null;
+    this.zipTo = null;
+    this.crawlN = null;
+    this.silk.setEnabled(false);
+  }
+
   private maybeLand() {
     const p = this.player;
-    const floor = roofY(p.x, p.z, this.city.colliders);
-    if (p.y <= floor + 0.14 && p.vy <= 2.6) {
-      p.y = floor;
-      p.vy = 0;
+    const floor = standY(p.x, p.z, this.city.colliders);
+    if (p.y <= floor + 0.38 && p.vy <= 8) {
       if (this.mode === "air" || this.mode === "swing" || this.mode === "zip") {
         const spd = Math.hypot(p.vx, p.vz);
         if (spd > 16) sharedSfx.impact();
-        this.mode = "ground";
-        this.rope = null;
-        this.zipTo = null;
-        this.silk.setEnabled(false);
-        p.grounded = true;
       }
+      this.landOn(floor);
     }
+  }
+
+  private tryStartClimb(): boolean {
+    const p = this.player;
+    const w = nearestWall(p.x, Math.max(0.4, p.y), p.z, this.city.colliders, 1.35);
+    if (!w) return false;
+    const fwd = lookDir(this.camYaw, 0);
+    const right = new Vector3(fwd.z, 0, -fwd.x);
+    const mx = fwd.x * -this.input.moveY + right.x * this.input.moveX;
+    const mz = fwd.z * -this.input.moveY + right.z * this.input.moveX;
+    const into = -mx * w.nx - mz * w.nz;
+    if (!this.input.climbHeld && into < 0.28) return false;
+    this.stickWall(w);
+    return true;
   }
 
   private maybeCrawl() {
     if (this.mode !== "air") return;
     const p = this.player;
-    if (p.y < 1.45) return;
-    const w = nearestWall(p.x, p.y, p.z, this.city.colliders, 1.15);
+    const w = nearestWall(p.x, p.y, p.z, this.city.colliders, this.input.climbHeld ? 1.55 : 1.05);
     if (!w) return;
+    if (!this.input.climbHeld && p.y < 0.55) return;
+    this.stickWall(w);
+  }
+
+  private stickWall(w: { x: number; y: number; z: number; nx: number; nz: number; maxY: number }) {
+    const p = this.player;
     this.mode = "crawl";
-    this.crawlN = { nx: w.nx, nz: w.nz };
+    this.crawlN = { nx: w.nx, nz: w.nz, maxY: w.maxY };
     p.vx = 0;
     p.vz = 0;
     p.vy = 0;
-    p.x += w.nx * 0.08;
-    p.z += w.nz * 0.08;
+    p.x = w.x + w.nx * 0.42;
+    p.z = w.z + w.nz * 0.42;
+    this.rope = null;
+    this.zipTo = null;
     this.silk.setEnabled(false);
   }
 
   private stepCrawl(dt: number) {
     const p = this.player;
     const ins = this.input;
-    const w = nearestWall(p.x, p.y, p.z, this.city.colliders, 1.65);
+    const w = nearestWall(p.x, p.y, p.z, this.city.colliders, 1.85);
     if (!w) {
-      this.mode = "air";
-      this.crawlN = null;
+      const floor = standY(p.x, p.z, this.city.colliders);
+      if (floor > 1 && p.y >= floor - 0.8) this.landOn(floor);
+      else {
+        this.mode = "air";
+        this.crawlN = null;
+      }
       return;
     }
-    this.crawlN = { nx: w.nx, nz: w.nz };
+    this.crawlN = { nx: w.nx, nz: w.nz, maxY: w.maxY };
     const fwd = lookDir(this.camYaw, 0);
     const right = new Vector3(fwd.z, 0, -fwd.x);
     const tx = fwd.x * -ins.moveY + right.x * ins.moveX;
     const tz = fwd.z * -ins.moveY + right.z * ins.moveX;
-    p.x += tx * 4.4 * dt;
-    p.z += tz * 4.4 * dt;
-    p.y += (ins.sprint ? 5.2 : 3.5) * (ins.moveY <= 0 ? 1 : -0.55) * dt;
-    p.y = Math.max(1.2, Math.min(p.y, roofY(p.x, p.z, this.city.colliders) + 18));
-    p.x += w.nx * 0.05;
-    p.z += w.nz * 0.05;
-    p.yaw = this.camYaw;
+    const alongX = tx + w.nx * (tx * w.nx + tz * w.nz);
+    const alongZ = tz + w.nz * (tx * w.nx + tz * w.nz);
+    p.x += alongX * 3.6 * dt;
+    p.z += alongZ * 3.6 * dt;
+    let climb = 0;
+    if (ins.climbHeld || ins.moveY < -0.12) climb = ins.sprint ? 5.6 : 4.2;
+    else if (ins.moveY > 0.18) climb = -3.4;
+    p.y += climb * dt;
+    p.y = Math.max(0.35, p.y);
+    const pinned = nearestWall(p.x, p.y, p.z, this.city.colliders, 1.85) ?? w;
+    p.x = pinned.x + pinned.nx * 0.42;
+    p.z = pinned.z + pinned.nz * 0.42;
+    this.crawlN = { nx: pinned.nx, nz: pinned.nz, maxY: pinned.maxY };
+    p.yaw = Math.atan2(-pinned.nx, -pinned.nz);
     this.playerMesh.setEnabled(true);
-    if (ins.jumpPressed || ins.swingHeld) {
-      p.vx = w.nx * 8.6;
-      p.vz = w.nz * 8.6;
+    if (p.y >= pinned.maxY - 0.42) {
+      p.x = pinned.x - pinned.nx * 1.05;
+      p.z = pinned.z - pinned.nz * 1.05;
+      this.landOn(pinned.maxY);
+      return;
+    }
+    if (ins.jumpPressed || (ins.swingHeld && !ins.climbHeld)) {
+      p.vx = pinned.nx * 8.6;
+      p.vz = pinned.nz * 8.6;
       p.vy = 6.4;
       this.mode = "air";
       this.crawlN = null;
@@ -1412,7 +1487,7 @@ export class ViceGame {
   }
 
   private tickArrest(dt: number) {
-    if (this.interior !== "street" || this.mode !== "ground" || this.stars <= 0) { this.stillT = 0; return; }
+    if (this.interior !== "street" || this.mode !== "ground" || this.drive || this.stars <= 0) { this.stillT = 0; return; }
     let close = false;
     for (const c of this.cops) {
       if (c.state === "down") continue;
@@ -1497,7 +1572,8 @@ export class ViceGame {
   private cameraFollow() {
     const spd = Math.hypot(this.player.vx, this.player.vy, this.player.vz);
     const flying = this.mode === "swing" || this.mode === "zip" || this.mode === "air" || this.mode === "crawl";
-    const wantDist = this.interior !== "street" ? this.camDist
+    const wantDist = this.drive ? 11.2
+      : this.interior !== "street" ? this.camDist
       : flying ? 9.2 + Math.min(4.2, spd * 0.055)
       : 8.2;
     this.camDist += (wantDist - this.camDist) * 0.12;
@@ -1531,8 +1607,13 @@ export class ViceGame {
   private syncMeshes() {
     this.playerMesh.position.set(this.player.x, this.player.y, this.player.z);
     this.playerMesh.rotation.y = this.player.yaw;
-    const flying = this.mode === "swing" || this.mode === "zip" || this.mode === "air" || this.mode === "crawl";
-    if (flying) tickSwingPose(this.playerMesh, this.time, this.mode === "swing" || this.mode === "zip");
+    const flying = this.mode === "swing" || this.mode === "zip" || this.mode === "air";
+    this.playerMesh.setEnabled(!this.drive);
+    if (this.drive) {
+      this.silk.setEnabled(false);
+      this.aimOrb.setEnabled(false);
+    } else if (this.mode === "crawl") tickCrawlPose(this.playerMesh, this.time);
+    else if (flying) tickSwingPose(this.playerMesh, this.time, this.mode === "swing" || this.mode === "zip");
     else {
       const moving = Math.hypot(this.player.vx, this.player.vz) > 0.45;
       if (this.interior !== "jail") tickWalk(this.playerMesh, this.time, moving);
@@ -1586,6 +1667,8 @@ export class ViceGame {
   private missions(_dt: number) {
     if (this.interior === "jail") return;
     this.prompt = "";
+    const nearCar = this.nearestCar(2.7);
+    const canClimb = !!nearestWall(this.player.x, Math.max(0.4, this.player.y), this.player.z, this.city.colliders, 1.35);
 
     switch (this.mission) {
       case "launch":
@@ -1633,13 +1716,19 @@ export class ViceGame {
         this.subtitle = "South Docks. Keep swinging.";
         if (this.aim && this.mode === "ground") this.prompt = "HOLD F  SALIN";
         else if (this.mode === "swing") this.prompt = "RELEASE  FLY    E  ZIP";
-        else if (this.mode === "crawl") this.prompt = "JUMP / SALIN  LEAP";
+        else if (this.mode === "crawl") this.prompt = "HOLD C  TIRMAN    VAULT AT LEDGE";
         break;
       default: {
         const _never: never = this.mission;
         void _never;
       }
     }
+    if (this.drive) this.prompt = "F / BİN  İN";
+    else if (nearCar && this.mode === "ground" && this.player.y < 1.35) {
+      const need = CAR_SPEC[nearCar.kind].hotwire;
+      this.prompt = need > 0 ? "HOLD F  BİN" : "F  BİN";
+    } else if (this.mode === "crawl") this.prompt = "HOLD C  TIRMAN    VAULT THE LEDGE";
+    else if (canClimb && this.mode === "ground") this.prompt = this.prompt || "HOLD C  TIRMAN";
   }
 
   private nearestCar(r: number): Car | null {
@@ -1664,11 +1753,13 @@ export class ViceGame {
     h.reloading = false;
     h.prompt = this.prompt;
     h.subtitle = this.subtitle;
-    h.inCar = false;
-    h.vehicleHp = 0;
+    h.inCar = !!this.drive;
+    h.vehicleHp = this.drive ? Math.round((this.drive.body + this.drive.engineHp + this.drive.tires) / 3) : 0;
     h.mode = this.mode;
     h.speed = Math.hypot(this.player.vx, this.player.vy, this.player.vz);
-    h.canAttach = !!this.aim;
+    h.canAttach = !!this.aim && !this.drive;
+    h.nearCar = !!this.nearestCar(2.7) && this.mode === "ground" && this.player.y < 1.35 && !this.drive;
+    h.canClimb = !this.drive && !!nearestWall(this.player.x, Math.max(0.4, this.player.y), this.player.z, this.city.colliders, 1.35);
     h.fade = this.fade;
     h.busted = this.busted;
     h.fps = this.fps;

@@ -38,6 +38,8 @@ export type HudState = {
   mode: MoveMode;
   speed: number;
   canAttach: boolean;
+  nearCar: boolean;
+  canClimb: boolean;
 };
 
 export const emptyHud = (): HudState => ({
@@ -72,6 +74,8 @@ export const emptyHud = (): HudState => ({
   mode: "ground",
   speed: 0,
   canAttach: false,
+  nearCar: false,
+  canClimb: false,
 });
 
 export type AABB = {
