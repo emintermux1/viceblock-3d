@@ -51,6 +51,7 @@ export const LOC = {
   carA: { x: -6, z: 16, yaw: 0.2 },
   carB: { x: 34, z: 22, yaw: Math.PI * 0.5 },
   carC: { x: 46, z: 56, yaw: -0.4 },
+  club: { x: -16, z: 40.5 },
 };
 
 export function clamp(v: number, a: number, b: number) {
@@ -96,6 +97,7 @@ export const INT = {
   mart: { ox: 220, oz: 0 },
   garage: { ox: 220, oz: 40 },
   jail: { ox: 220, oz: 80 },
+  club: { ox: 260, oz: 0 },
 };
 
 export const PD = { x: 52, z: -18 };

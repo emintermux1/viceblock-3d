@@ -3,7 +3,7 @@ export type MissionId = "launch" | "crane" | "sweep" | "ghost" | "free";
 export type PedState = "wander" | "flee" | "down" | "call" | "sit" | "wait" | "webbed";
 export type MoveMode = "ground" | "air" | "swing" | "zip" | "crawl";
 export type CopState = "chase" | "down" | "webbed";
-export type InteriorId = "street" | "mart" | "garage" | "jail";
+export type InteriorId = "street" | "mart" | "garage" | "jail" | "club";
 export type BuildingStyle = "tower" | "walkup" | "warehouse" | "shop";
 
 export type HudState = {
@@ -39,6 +39,7 @@ export type HudState = {
   speed: number;
   canAttach: boolean;
   nearCar: boolean;
+  nearDoor: boolean;
   canClimb: boolean;
 };
 
@@ -75,6 +76,7 @@ export const emptyHud = (): HudState => ({
   speed: 0,
   canAttach: false,
   nearCar: false,
+  nearDoor: false,
   canClimb: false,
 });
 

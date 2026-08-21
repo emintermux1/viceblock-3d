@@ -49,6 +49,61 @@ export class Radio {
 
 export const radio = new Radio();
 
+export class ClubBass {
+  private osc: OscillatorNode | null = null;
+  private gain: GainNode | null = null;
+  private lfo: OscillatorNode | null = null;
+  private lfoGain: GainNode | null = null;
+  muted = false;
+
+  ensure() {
+    gestureUnlock();
+    if (!sharedCtx || this.osc) return;
+    const g = sharedCtx.createGain();
+    g.gain.value = 0;
+    const o = sharedCtx.createOscillator();
+    o.type = "sine";
+    o.frequency.value = 58;
+    const filter = sharedCtx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 140;
+    const lfo = sharedCtx.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = 1.7;
+    const lg = sharedCtx.createGain();
+    lg.gain.value = 0;
+    lfo.connect(lg);
+    lg.connect(g.gain);
+    o.connect(filter);
+    filter.connect(g);
+    g.connect(sharedCtx.destination);
+    o.start();
+    lfo.start();
+    this.osc = o;
+    this.gain = g;
+    this.lfo = lfo;
+    this.lfoGain = lg;
+  }
+
+  setLevel(v: number) {
+    this.ensure();
+    if (!this.gain || !this.lfoGain || this.muted) {
+      if (this.gain) this.gain.gain.value = 0;
+      return;
+    }
+    const n = Math.max(0, Math.min(1, v));
+    this.gain.gain.value = n * 0.09;
+    this.lfoGain.gain.value = n * 0.05;
+  }
+
+  setMuted(m: boolean) {
+    this.muted = m;
+    if (m && this.gain) this.gain.gain.value = 0;
+  }
+}
+
+export const clubBass = new ClubBass();
+
 export class Sfx {
   muted = false;
   private gun: HTMLAudioElement | null = null;
@@ -87,6 +142,7 @@ export class Sfx {
   setMuted(m: boolean) {
     this.muted = m;
     radio.setMuted(m);
+    clubBass.setMuted(m);
     if (m) {
       this.stopEngine();
       this.stopSiren();

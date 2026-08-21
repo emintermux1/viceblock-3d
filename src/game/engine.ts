@@ -3,9 +3,9 @@ import {
   StandardMaterial, Vector3,
 } from "@babylonjs/core";
 import { ASSIST, aimAngles, angError, lookFriction, magnetBlend, scoreAssist, type AssistHit } from "./aim";
-import { gestureUnlock, radio, sharedSfx } from "./audio";
+import { clubBass, gestureUnlock, radio, sharedSfx } from "./audio";
 import { buildCity, tickCityArt, type CityData } from "./city";
-import { blockedAt, landFloor, resolveCapsule, slideMove, unstickCircle } from "./collide";
+import { blockedAt, circleHitsAABB, landFloor, resolveCapsule, slideMove, unstickCircle } from "./collide";
 import {
   ARREST_R, BAIL, CALL_T, CAR_FRICTION, CAR_HP, CAR_REV, CAR_SPEC, CHAR, COP_DMG,
   COP_FOOT, COP_SHOT_CD, CRANE_GOAL, FENCE, FIRE_CD, GRAVITY, GUN_DMG, GUN_RANGE, INT, JAIL_WAIT,
@@ -16,8 +16,8 @@ import {
 } from "./constants";
 import type { Input } from "./input";
 import {
-  findNamed, flareTex, lookDir, makeCar, makeCop, makeHero, makePed, makeSilk, mat, placeSilk,
-  setGunHolstered, tickClimbPose, tickGunPose, tickSwingPose, tickWalk,
+  findNamed, flareTex, lookDir, makeBouncer, makeCar, makeCop, makeDancer, makeHero, makePed, makeSilk, makeWoman, mat, placeSilk,
+  setGunHolstered, tickClimbPose, tickDancePose, tickGunPose, tickSwingPose, tickWalk,
 } from "./meshes";
 import {
   nearestWall, pickAnchor, standY, stepAir, stepSwing, stepZip, type Anchor, type SwingRope,
@@ -32,7 +32,7 @@ type Car = {
   wrecked: boolean; exploding: boolean; boomT: number; occupied: boolean; special: string;
   smoke: ParticleSystem | null; stolen: boolean; flow: boolean; flowAxis: "x" | "z"; flowDir: number;
 };
-type PedRole = "wander" | "group" | "sit" | "cross" | "clerk" | "fence";
+type PedRole = "wander" | "group" | "sit" | "cross" | "clerk" | "fence" | "dancer" | "hostess" | "bouncer" | "nightlife";
 type Ped = {
   mesh: Mesh; x: number; z: number; yaw: number; hp: number; state: PedState;
   tx: number; tz: number; downT: number; color: string; role: PedRole; callT: number; waitT: number;
@@ -183,6 +183,7 @@ export class ViceGame {
     this.canvas.removeEventListener("click", this.onClick);
     sharedSfx.stopEngine();
     sharedSfx.stopSiren();
+    clubBass.setLevel(0);
     this.engine.stopRenderLoop();
     this.scene.dispose();
     this.engine.dispose();
@@ -304,6 +305,56 @@ export class ViceGame {
     const guard = makeCop(this.scene);
     guard.position.set(INT.jail.ox + 2.2, 0, INT.jail.oz - 1.4);
     guard.rotation.y = -0.4;
+    const nightSpots = [
+      { x: -20, z: 32 }, { x: -12, z: 34 }, { x: -8, z: 28 }, { x: 6, z: 33 }, { x: -22, z: 8 },
+    ];
+    for (let i = 0; i < nightSpots.length; i++) {
+      const s = nightSpots[i];
+      if (this.blocked(s.x, s.z, 0.5)) continue;
+      const mesh = makeWoman(this.scene, 40 + i, true);
+      mesh.position.set(s.x, 0, s.z);
+      this.peds.push({
+        mesh, x: s.x, z: s.z, yaw: Math.random() * Math.PI * 2, hp: 40,
+        state: "wander", tx: s.x + 2, tz: s.z + 2, downT: 0,
+        color: "#ff4da6", role: "nightlife", callT: 0, waitT: 0,
+      });
+    }
+    const bounce = makeBouncer(this.scene);
+    bounce.position.set(LOC.club.x - 2.2, 0, LOC.club.z - 6.4);
+    this.peds.push({
+      mesh: bounce, x: LOC.club.x - 2.2, z: LOC.club.z - 6.4, yaw: Math.PI, hp: 70,
+      state: "wander", tx: LOC.club.x - 2.2, tz: LOC.club.z - 6.4, downT: 0,
+      color: "#222", role: "bouncer", callT: 0, waitT: 0,
+    });
+    const dancers: [number, number][] = [
+      [INT.club.ox, INT.club.oz + 5.2],
+      [INT.club.ox - 1.15, INT.club.oz + 4.7],
+    ];
+    for (let i = 0; i < dancers.length; i++) {
+      const [x, z] = dancers[i];
+      const mesh = makeDancer(this.scene, 8 + i);
+      mesh.position.set(x, 0.22, z);
+      this.peds.push({
+        mesh, x, z, yaw: Math.PI, hp: 40,
+        state: "wander", tx: x, tz: z, downT: 0,
+        color: "#ff4da6", role: "dancer", callT: 0, waitT: 0,
+      });
+    }
+    const hosts: [number, number][] = [
+      [INT.club.ox - 3.2, INT.club.oz - 1.4],
+      [INT.club.ox + 2.4, INT.club.oz + 0.6],
+      [INT.club.ox - 1.2, INT.club.oz + 2.2],
+    ];
+    for (let i = 0; i < hosts.length; i++) {
+      const [x, z] = hosts[i];
+      const mesh = makeWoman(this.scene, 20 + i, true);
+      mesh.position.set(x, 0, z);
+      this.peds.push({
+        mesh, x, z, yaw: 0, hp: 40,
+        state: "wander", tx: x, tz: z, downT: 0,
+        color: "#ff4da6", role: "hostess", callT: 0, waitT: 0,
+      });
+    }
   }
 
   private tick() {
@@ -368,6 +419,7 @@ export class ViceGame {
     this.cameraFollow();
     this.syncMeshes();
     tickCityArt(this.scene, this.time);
+    this.tickClubBed();
     this.wantedDecay(dt);
     this.saveAcc += dt;
     if (this.saveAcc > 4) { this.saveAcc = 0; this.persist(); }
@@ -964,7 +1016,9 @@ export class ViceGame {
     if (this.interior === "street") {
       const mart = this.city.interiors.mart;
       const gar = this.city.interiors.garage;
-      if (dist2(this.player.x, this.player.z, mart.doorX, mart.doorZ) < 2.6) this.enterInterior("mart");
+      const club = this.city.interiors.club;
+      if (dist2(this.player.x, this.player.z, club.doorX, club.doorZ) < 2.8) this.enterInterior("club");
+      else if (dist2(this.player.x, this.player.z, mart.doorX, mart.doorZ) < 2.6) this.enterInterior("mart");
       else if (dist2(this.player.x, this.player.z, gar.doorX, gar.doorZ) < 2.8) this.enterInterior("garage");
     }
   }
@@ -979,7 +1033,7 @@ export class ViceGame {
     this.notifyCrime(best.x, best.z, "jack");
   }
 
-  private enterInterior(id: "mart" | "garage") {
+  private enterInterior(id: "mart" | "garage" | "club") {
     const room = this.city.interiors[id];
     if (id === "garage") {
       const c = this.nearestCar(6);
@@ -996,6 +1050,7 @@ export class ViceGame {
     this.player.y = 0;
     this.camDist = room.camDist;
     this.enterLock = 0.3;
+    resolveCapsule(this.player, room.colliders, PLAYER_R);
   }
 
   private leaveInterior() {
@@ -1012,6 +1067,7 @@ export class ViceGame {
     this.interior = "street";
     this.camDist = 7.2;
     this.enterLock = 0.3;
+    resolveCapsule(this.player, this.city.colliders, PLAYER_R);
   }
 
   private tryRico(): boolean {
@@ -1074,10 +1130,18 @@ export class ViceGame {
 
   private walkable(x: number, z: number): boolean {
     if (this.interior !== "street") {
-      const id = this.interior;
-      const c = id === "mart" ? { x: INT.mart.ox, z: INT.mart.oz, hw: 5.6, hd: 4.6 }
-        : id === "garage" ? { x: INT.garage.ox, z: INT.garage.oz, hw: 6.6, hd: 5.6 }
-        : { x: INT.jail.ox, z: INT.jail.oz, hw: 4.2, hd: 3.6 };
+      let c: { x: number; z: number; hw: number; hd: number };
+      switch (this.interior) {
+        case "mart": c = { x: INT.mart.ox, z: INT.mart.oz, hw: 5.6, hd: 4.6 }; break;
+        case "garage": c = { x: INT.garage.ox, z: INT.garage.oz, hw: 6.6, hd: 5.6 }; break;
+        case "jail": c = { x: INT.jail.ox, z: INT.jail.oz, hw: 4.2, hd: 3.6 }; break;
+        case "club": c = { x: INT.club.ox, z: INT.club.oz, hw: 8.2, hd: 7.2 }; break;
+        default: {
+          const _never: never = this.interior;
+          void _never;
+          return false;
+        }
+      }
       return Math.abs(x - c.x) < c.hw && Math.abs(z - c.z) < c.hd;
     }
     if (z > this.city.waterZ && !pointInAABB(x, z, this.city.pier, 0.2)) return false;
@@ -1513,10 +1577,36 @@ export class ViceGame {
         tickWalk(p.mesh, this.time, this.storeRobbed && this.interior === "mart");
         continue;
       }
-      if (p.role === "fence") {
+      if (p.role === "fence" || p.role === "bouncer") {
         p.mesh.position.set(p.x, 0, p.z);
         p.mesh.rotation.y = p.yaw;
         tickWalk(p.mesh, this.time, false);
+        continue;
+      }
+      if (p.role === "dancer") {
+        p.mesh.position.set(p.x, 0.22, p.z);
+        p.mesh.rotation.y = p.yaw + Math.sin(this.time * 0.7) * 0.35;
+        tickDancePose(p.mesh, this.time + p.x);
+        continue;
+      }
+      if (p.role === "hostess") {
+        if (dist2(p.x, p.z, p.tx, p.tz) < 0.6) {
+          p.tx = INT.club.ox + (Math.random() - 0.5) * 10;
+          p.tz = INT.club.oz + (Math.random() - 0.5) * 8;
+        }
+        const ax = p.tx - p.x;
+        const az = p.tz - p.z;
+        const d = Math.hypot(ax, az) || 1;
+        const nx = p.x + (ax / d) * 1.35 * dt;
+        const nz = p.z + (az / d) * 1.35 * dt;
+        if (Math.abs(nx - INT.club.ox) < 7.4 && Math.abs(nz - INT.club.oz) < 6.2) {
+          if (!this.circleHitsCols(nx, p.z, 0.35, this.city.interiors.club.colliders)) p.x = nx;
+          if (!this.circleHitsCols(p.x, nz, 0.35, this.city.interiors.club.colliders)) p.z = nz;
+        }
+        p.yaw = Math.atan2(ax, az);
+        p.mesh.position.set(p.x, 0, p.z);
+        p.mesh.rotation.y = p.yaw;
+        tickWalk(p.mesh, this.time, true);
         continue;
       }
       if (p.state === "call") {
@@ -1979,6 +2069,47 @@ export class ViceGame {
       this.prompt = "F / BİN";
     } else if (this.mode === "crawl") this.prompt = "HOLD C  TIRMAN    VAULT THE LEDGE";
     else if (canClimb && this.mode === "ground") this.prompt = this.prompt || "HOLD C  TIRMAN";
+    const door = this.nearDoor();
+    if (door === "enter") this.prompt = "F  GİR";
+    else if (door === "exit") this.prompt = "F  ÇIK";
+  }
+
+  private nearDoor(): "enter" | "exit" | null {
+    if (this.drive || this.mode !== "ground") return null;
+    if (this.interior === "street") {
+      const rooms = [this.city.interiors.club, this.city.interiors.mart, this.city.interiors.garage];
+      for (const room of rooms) {
+        if (dist2(this.player.x, this.player.z, room.doorX, room.doorZ) < 2.8) return "enter";
+      }
+      return null;
+    }
+    if (this.interior === "jail") return null;
+    const room = this.city.interiors[this.interior];
+    if (dist2(this.player.x, this.player.z, room.exitX, room.exitZ) < 2.4) return "exit";
+    return null;
+  }
+
+  private circleHitsCols(x: number, z: number, r: number, cols: AABB[]): boolean {
+    for (const b of cols) {
+      if (b.maxY < 0.25) continue;
+      if (circleHitsAABB(x, z, r, b)) return true;
+    }
+    return false;
+  }
+
+  private tickClubBed() {
+    if (this.interior === "club") {
+      clubBass.setLevel(1);
+      if (radio.el) radio.el.volume = 0.12;
+      return;
+    }
+    if (radio.el) radio.el.volume = 0.4;
+    if (this.interior !== "street") {
+      clubBass.setLevel(0);
+      return;
+    }
+    const d = dist2(this.player.x, this.player.z, LOC.club.x, LOC.club.z);
+    clubBass.setLevel(d < 42 ? clamp(1 - d / 42, 0, 1) * 0.38 : 0);
   }
 
   private nearestCar(r: number): Car | null {
@@ -2009,15 +2140,27 @@ export class ViceGame {
     h.speed = Math.hypot(this.player.vx, this.player.vy, this.player.vz);
     h.canAttach = !!this.aim && !this.drive;
     h.nearCar = !!this.nearestCar(3.2) && this.mode === "ground" && this.player.y < 1.35 && !this.drive;
+    h.nearDoor = this.nearDoor() !== null;
     h.canClimb = !this.drive && !!nearestWall(this.player.x, Math.max(0.35, this.player.y + 0.4), this.player.z, this.city.colliders, 1.85);
     h.fade = this.fade;
     h.busted = this.busted;
     h.fps = this.fps;
     h.character = this.player.character;
     h.radioLive = radio.isLive();
-    h.district = this.interior === "mart" ? "Nova Mart" : this.interior === "garage" ? "Maya Garage" : this.interior === "jail" ? "NCPD Hold" : "South Docks";
-    h.mapX = this.interior === "street" ? this.player.x : (this.interior === "mart" ? LOC.mart.x : this.interior === "garage" ? LOC.garage.x : PD.x);
-    h.mapZ = this.interior === "street" ? this.player.z : (this.interior === "mart" ? LOC.mart.z : this.interior === "garage" ? LOC.garage.z : PD.z);
+    switch (this.interior) {
+      case "mart": h.district = "Nova Mart"; h.mapX = LOC.mart.x; h.mapZ = LOC.mart.z; break;
+      case "garage": h.district = "Maya Garage"; h.mapX = LOC.garage.x; h.mapZ = LOC.garage.z; break;
+      case "jail": h.district = "NCPD Hold"; h.mapX = PD.x; h.mapZ = PD.z; break;
+      case "club": h.district = "Salt Glow"; h.mapX = LOC.club.x; h.mapZ = LOC.club.z; break;
+      case "street": h.district = "South Docks"; h.mapX = this.player.x; h.mapZ = this.player.z; break;
+      default: {
+        const _never: never = this.interior;
+        void _never;
+        h.district = "South Docks";
+        h.mapX = this.player.x;
+        h.mapZ = this.player.z;
+      }
+    }
     h.mapYaw = this.player.yaw;
     h.mapGoalX = this.marker.isEnabled() ? this.marker.position.x : 999;
     h.mapGoalZ = this.marker.isEnabled() ? this.marker.position.z : 999;

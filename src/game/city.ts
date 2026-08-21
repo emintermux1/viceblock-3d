@@ -18,7 +18,7 @@ import type { AABB } from "./types";
 
 export type Landmark = { x: number; z: number; r: number };
 export type InteriorRoom = {
-  id: "mart" | "garage" | "jail";
+  id: "mart" | "garage" | "jail" | "club";
   colliders: AABB[];
   spawnX: number;
   spawnZ: number;
@@ -38,7 +38,7 @@ export type CityData = {
   mart: Landmark;
   pier: AABB;
   waterZ: number;
-  interiors: { mart: InteriorRoom; garage: InteriorRoom; jail: InteriorRoom };
+  interiors: { mart: InteriorRoom; garage: InteriorRoom; jail: InteriorRoom; club: InteriorRoom };
   fence: { x: number; z: number };
   benches: { x: number; z: number }[];
   crossings: { x: number; z: number }[];
@@ -130,6 +130,7 @@ export function buildCity(scene: Scene): CityData {
   placeBlocks(scene, colliders, anchors);
   placeLandmarks(scene, colliders, anchors);
   placeStrip(scene, colliders, anchors);
+  placeClub(scene, colliders, anchors);
   placeDocks(scene, colliders, anchors);
   placePalmsAndLamps(scene, anchors);
   placeSwingCables(scene, anchors);
@@ -431,6 +432,32 @@ function placeStrip(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
   neonT.range = 14;
 }
 
+function placeClub(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
+  const x = LOC.club.x;
+  const z = LOC.club.z;
+  makeBuilding(scene, x, z, 15, 10, 13, "#2a0818", "shop", Math.PI);
+  colliders.push(boxAABB(x, z, 15, 10, 13, Math.PI));
+  addBuildingAnchors(anchors, x, z, 15, 10, 13);
+  makeSign(scene, "SALT GLOW", x, 8.6, z - 5.2, 12.4, 1.55, "#12010c", "#ff4da6", 0);
+  makeSign(scene, "SALT GLOW", x, 8.6, z + 5.2, 12.4, 1.55, "#12010c", "#ff4da6", Math.PI);
+  makeSign(scene, "NOVA CITY", x, 7.2, z - 5.15, 6.2, 0.55, "#100810", "#ffc83d", 0);
+  makeAwning(scene, x, 3.4, z - 5.15, 13.6, "#c03050", 0);
+  const canopy = MeshBuilder.CreateBox("clubcan", { width: 4.2, height: 0.12, depth: 1.8 }, scene);
+  canopy.position.set(x, 2.85, z - 6.1);
+  canopy.material = mat(scene, "#1a0810", 0.08);
+  const door = MeshBuilder.CreateBox("clubdoor", { width: 2.2, height: 2.4, depth: 0.12 }, scene);
+  door.position.set(x, 1.25, z - 5.08);
+  door.material = mat(scene, "#2a1020", 0.12);
+  const glow = new PointLight("clubglow", new Vector3(x, 6.4, z - 6), scene);
+  glow.diffuse = new Color3(1, 0.22, 0.55);
+  glow.intensity = 1.15;
+  glow.range = 28;
+  const wash = new PointLight("clubwash", new Vector3(x, 4.2, z - 8), scene);
+  wash.diffuse = new Color3(1, 0.18, 0.62);
+  wash.intensity = 0.55;
+  wash.range = 18;
+}
+
 function placeDocks(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
   const deck = MeshBuilder.CreateBox("pier", { width: 32, height: 0.42, depth: 24 }, scene);
   deck.position.set(44, 0.16, 79);
@@ -710,6 +737,8 @@ function buildInteriors(scene: Scene): CityData["interiors"] {
   makeBench(scene, INT.jail.ox, INT.jail.oz + 1.4, Math.PI);
   makeSign(scene, "NCPD HOLD", INT.jail.ox, 3.1, INT.jail.oz + 3.7, 4.4, 0.4, "#0a1428", "#7eb0ff", Math.PI);
 
+  const clubC = buildClubRoom(scene);
+
   return {
     mart: {
       id: "mart", colliders: martC,
@@ -735,5 +764,85 @@ function buildInteriors(scene: Scene): CityData["interiors"] {
       doorX: 52, doorZ: -11.2,
       camDist: 4.8,
     },
+    club: {
+      id: "club", colliders: clubC,
+      spawnX: INT.club.ox, spawnZ: INT.club.oz - 5.6,
+      exitX: INT.club.ox, exitZ: INT.club.oz - 6.4,
+      streetX: LOC.club.x, streetZ: LOC.club.z - 7.2,
+      doorX: LOC.club.x, doorZ: LOC.club.z - 5.6,
+      camDist: 6.4,
+    },
   };
+}
+
+function buildClubRoom(scene: Scene): AABB[] {
+  const cx = INT.club.ox;
+  const cz = INT.club.oz;
+  const w = 18;
+  const d = 16;
+  const h = 5.2;
+  const cols = roomWalls(scene, cx, cz, w, d, h, "#1a0812", "neg");
+  const floor = MeshBuilder.CreateGround("clubfl", { width: 17.4, height: 15.4 }, scene);
+  floor.position.set(cx, 0.01, cz);
+  const fm = uniqueMat(scene, "#180814", 0.08, 0.45);
+  fm.specularPower = 64;
+  floor.material = fm;
+  const ceil = MeshBuilder.CreateGround("clubc", { width: 17.4, height: 15.4 }, scene);
+  ceil.position.set(cx, 5.05, cz);
+  ceil.rotation.x = Math.PI;
+  ceil.material = mat(scene, "#10080c", 0.06);
+  const stage = MeshBuilder.CreateBox("stage", { width: 7.2, height: 0.22, depth: 3.6 }, scene);
+  stage.position.set(cx, 0.12, cz + 5.1);
+  stage.material = mat(scene, "#2a1020", 0.1);
+  const pole = MeshBuilder.CreateCylinder("pole", { height: 4.4, diameter: 0.1, tessellation: 8 }, scene);
+  pole.position.set(cx, 2.3, cz + 5.3);
+  pole.material = mat(scene, "#e8d0e0", 0.35);
+  const bar = MeshBuilder.CreateBox("cbar", { width: 1.1, height: 1.15, depth: 7.2 }, scene);
+  bar.position.set(cx + 6.6, 0.58, cz - 0.4);
+  bar.material = mat(scene, "#3a1828");
+  cols.push(boxAABB(cx + 6.6, cz - 0.4, 1.1, 7.2, 1.15, 0, 0));
+  for (let i = 0; i < 4; i++) {
+    const bottle = MeshBuilder.CreateCylinder("btl", { height: 0.28, diameter: 0.08, tessellation: 6 }, scene);
+    bottle.position.set(cx + 6.6, 1.28, cz - 2.4 + i * 1.4);
+    bottle.material = mat(scene, i % 2 ? "#ff4da6" : "#2ef2d0", 0.35);
+  }
+  makeBench(scene, cx - 6.2, cz - 1.2, Math.PI / 2);
+  makeBench(scene, cx - 6.2, cz + 1.6, Math.PI / 2);
+  const booth = MeshBuilder.CreateBox("booth", { width: 1.6, height: 1.05, depth: 0.35 }, scene);
+  booth.position.set(cx - 6.2, 0.55, cz - 1.2);
+  booth.material = mat(scene, "#4a1830");
+  cols.push(boxAABB(cx - 6.2, cz - 1.2, 0.4, 1.8, 1.05, 0, 0));
+  cols.push(boxAABB(cx - 6.2, cz + 1.6, 0.4, 1.8, 1.05, 0, 0));
+  const dj = MeshBuilder.CreateBox("dj", { width: 2.4, height: 1.05, depth: 1.1 }, scene);
+  dj.position.set(cx + 4.4, 0.55, cz + 5.0);
+  dj.material = mat(scene, "#1a1018");
+  cols.push(boxAABB(cx + 4.4, cz + 5.0, 2.4, 1.1, 1.05, 0, 0));
+  makeSign(scene, "SALT GLOW", cx, 4.4, cz + 7.7, 7.2, 0.7, "#100810", "#ff4da6", Math.PI);
+  const pink = new PointLight("clpink", new Vector3(cx, 3.4, cz + 4.2), scene);
+  pink.diffuse = new Color3(1, 0.22, 0.58);
+  pink.intensity = 0.85;
+  pink.range = 16;
+  const magenta = new PointLight("clmag", new Vector3(cx - 3, 2.8, cz - 2), scene);
+  magenta.diffuse = new Color3(0.85, 0.15, 0.7);
+  magenta.intensity = 0.45;
+  magenta.range = 12;
+  const fog = new ParticleSystem("clubfog", 22, scene);
+  fog.particleTexture = flareTex(scene);
+  fog.emitter = new Vector3(cx, 0.4, cz + 2);
+  fog.minEmitBox = new Vector3(-5, 0, -4);
+  fog.maxEmitBox = new Vector3(5, 0.6, 4);
+  fog.color1 = new Color4(1, 0.28, 0.55, 0.16);
+  fog.color2 = new Color4(0.7, 0.12, 0.45, 0.05);
+  fog.minSize = 0.7;
+  fog.maxSize = 1.8;
+  fog.minLifeTime = 2.2;
+  fog.maxLifeTime = 4.2;
+  fog.emitRate = 6;
+  fog.direction1 = new Vector3(-0.08, 0.12, -0.05);
+  fog.direction2 = new Vector3(0.08, 0.28, 0.05);
+  fog.minEmitPower = 0.04;
+  fog.maxEmitPower = 0.12;
+  fog.updateSpeed = 0.02;
+  fog.start();
+  return cols;
 }
