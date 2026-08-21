@@ -355,7 +355,7 @@ export class ViceGame {
 
     const nearCar = this.nearestCar(3.2);
     const streetBin = !!nearCar && this.mode === "ground" && p.y < 1.35;
-    if (streetBin && this.enterLock <= 0 && ins.enterPressed) {
+    if (streetBin && this.enterLock <= 0 && (ins.enterPressed || ins.enterHeld)) {
       this.tryEnterExit();
       if (this.drive) return;
     }
@@ -882,13 +882,14 @@ export class ViceGame {
     }
     if (this.tryRico()) return;
     let best: Car | null = null;
-    let bestD = 2.6;
+    let bestD = 3.4;
     for (const c of this.cars) {
       if (c.wrecked) continue;
       const d = dist2(this.player.x, this.player.z, c.x, c.z);
       if (d < bestD) { bestD = d; best = c; }
     }
     if (best && this.interior === "street") {
+      if (this.hotwire && this.hotwire.car === best) return;
       const need = CAR_SPEC[best.kind].hotwire;
       if (need <= 0) this.enterCar(best);
       else this.hotwire = { car: best, t: 0 };
