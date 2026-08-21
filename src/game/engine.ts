@@ -2,6 +2,7 @@ import {
   Color3, Engine, FreeCamera, Mesh, MeshBuilder, ParticleSystem, PointLight, Quaternion, Scene,
   StandardMaterial, Vector3,
 } from "@babylonjs/core";
+import { ASSIST, aimAngles, angError, lookFriction, magnetBlend, scoreAssist, type AssistHit } from "./aim";
 import { gestureUnlock, radio, sharedSfx } from "./audio";
 import { buildCity, tickCityArt, type CityData } from "./city";
 import {
@@ -61,6 +62,9 @@ export class ViceGame {
   private bumpedWall = false;
   private silk!: Mesh;
   private aimOrb!: Mesh;
+  private assistMark!: Mesh;
+  private assistHit: AssistHit | null = null;
+  private assistStick = 0;
   private aim: Anchor | null = null;
   private stuns = 0;
   private launched = false;
@@ -146,6 +150,10 @@ export class ViceGame {
     this.aimOrb = MeshBuilder.CreateSphere("aim", { diameter: 0.55, segments: 6 }, this.scene);
     this.aimOrb.material = mat(this.scene, CHAR[character].color, 0.9);
     this.aimOrb.setEnabled(false);
+    this.assistMark = MeshBuilder.CreateTorus("assist", { diameter: 0.7, thickness: 0.04, tessellation: 18 }, this.scene);
+    this.assistMark.material = mat(this.scene, CHAR[character].color, 0.55);
+    this.assistMark.rotation.x = Math.PI / 2;
+    this.assistMark.setEnabled(false);
     this.marker = MeshBuilder.CreateTorus("mk", { diameter: 3.2, thickness: 0.18, tessellation: 20 }, this.scene);
     this.marker.material = mat(this.scene, "#ffc83d", 0.8);
     this.spawnCars();
@@ -287,10 +295,7 @@ export class ViceGame {
     const look = this.input.consumeLook();
     const touch = this.input.showTouch;
     const inv = this.input.lookInvert ? -1 : 1;
-    const sx = touch ? 0.0072 : 0.0044;
-    const sy = (touch ? 0.0056 : 0.0038) * inv;
-    this.camYaw = angWrap(this.camYaw + look.x * sx);
-    this.camPitch = clamp(this.camPitch + look.y * sy, -0.62, 0.98);
+    this.applyLookAssist(dt, look.x, look.y, touch, inv);
     this.enterLock = Math.max(0, this.enterLock - dt);
     this.player.fireT = Math.max(0, this.player.fireT - dt);
     this.player.meleeT = Math.max(0, this.player.meleeT - dt);
@@ -1028,28 +1033,79 @@ export class ViceGame {
       if (this.player.fireT > 0) return;
       this.player.fireT = 0.24;
       this.camPunch = 0.18;
-      if (this.input.showTouch) this.nudgeAim();
       this.webShot();
     }
     void dt;
   }
 
+  private canAimAssist(): boolean {
+    if (this.drive) return false;
+    if (this.interior !== "street") return false;
+    if (this.mode === "swing" || this.mode === "zip" || this.mode === "crawl") return false;
+    return true;
+  }
 
-  private nudgeAim() {
-    let best = 0.42;
-    let yaw = this.camYaw;
-    const consider = (x: number, z: number) => {
-      const dx = x - this.player.x;
-      const dz = z - this.player.z;
-      const d = Math.hypot(dx, dz);
-      if (d < 2 || d > 26) return;
-      const want = Math.atan2(dx, dz);
-      const diff = angWrap(want - this.camYaw);
-      if (Math.abs(diff) < best) { best = Math.abs(diff); yaw = this.camYaw + diff * 0.55; }
-    };
-    for (const p of this.peds) if (p.state !== "down") consider(p.x, p.z);
-    for (const c of this.cops) if (c.state !== "down") consider(c.x, c.z);
-    this.camYaw = yaw;
+  private applyLookAssist(dt: number, lookX: number, lookY: number, touch: boolean, inv: number) {
+    const aiming = this.input.fireHeld || this.player.fireT > 0;
+    if (this.canAimAssist() && aiming) this.assistHit = this.pickAssist(touch, dt);
+    else if (!aiming) {
+      this.assistStick = Math.max(0, this.assistStick - dt);
+      if (this.assistStick <= 0) this.assistHit = null;
+    } else {
+      this.assistHit = null;
+    }
+
+    let fx = lookX;
+    let fy = lookY;
+    if (this.canAimAssist() && aiming && this.assistHit) {
+      const want = aimAngles(this.player.x, this.player.y, this.player.z, this.assistHit.x, this.assistHit.y, this.assistHit.z);
+      const err = angError(this.camYaw, this.camPitch, want.yaw, want.pitch);
+      const fric = lookFriction(err, touch);
+      fx *= fric;
+      fy *= fric;
+    }
+    const sx = touch ? 0.0072 : 0.0044;
+    const sy = (touch ? 0.0056 : 0.0038) * inv;
+    this.camYaw = angWrap(this.camYaw + fx * sx);
+    this.camPitch = clamp(this.camPitch + fy * sy, -0.62, 0.98);
+
+    if (this.canAimAssist() && aiming && this.assistHit) {
+      const want = aimAngles(this.player.x, this.player.y, this.player.z, this.assistHit.x, this.assistHit.y, this.assistHit.z);
+      const blend = magnetBlend(dt, touch, Math.hypot(lookX, lookY));
+      this.camYaw = angWrap(this.camYaw + angWrap(want.yaw - this.camYaw) * blend);
+      this.camPitch = clamp(this.camPitch + (want.pitch - this.camPitch) * blend, -0.62, 0.98);
+      if (this.mode === "ground") this.player.yaw = this.camYaw;
+    }
+  }
+
+  private pickAssist(touch: boolean, dt: number): AssistHit | null {
+    const stickyId = this.assistStick > 0 && this.assistHit ? this.assistHit.id : null;
+    const list: AssistHit[] = [];
+    for (const p of this.peds) {
+      if (p.state === "down" || p.state === "webbed") continue;
+      if (p.role === "clerk" || p.role === "fence") continue;
+      list.push({ kind: "ped", id: p.mesh.uniqueId, x: p.x, y: 0.95, z: p.z, r: 0.55 });
+    }
+    for (const c of this.cops) {
+      if (c.state === "down" || c.state === "webbed") continue;
+      list.push({ kind: "cop", id: c.mesh.uniqueId, x: c.x, y: 0.95, z: c.z, r: 0.55 });
+    }
+    for (const car of this.cars) {
+      if (car.wrecked || this.drive === car) continue;
+      list.push({ kind: "car", id: car.mesh.uniqueId, x: car.x, y: 0.62, z: car.z, r: 1.35 });
+    }
+    let best: AssistHit | null = null;
+    let bestScore = 99;
+    for (const hit of list) {
+      if (!this.hasLOS(this.player.x, this.player.z, hit.x, hit.z)) continue;
+      const score = scoreAssist(hit, this.player.x, this.player.y, this.player.z, this.camYaw, this.camPitch, stickyId, touch);
+      if (score === null || score >= bestScore) continue;
+      bestScore = score;
+      best = hit;
+    }
+    if (best) this.assistStick = ASSIST.stickTime;
+    else this.assistStick = Math.max(0, this.assistStick - dt);
+    return best;
   }
 
   private webShot() {
@@ -1058,38 +1114,66 @@ export class ViceGame {
     const origin = muzzle
       ? muzzle.getAbsolutePosition().clone()
       : new Vector3(this.player.x + Math.sin(this.player.yaw) * 0.45, this.player.y + 1.28, this.player.z + Math.cos(this.player.yaw) * 0.45);
-    const dir = lookDir(this.camYaw, this.camPitch * 0.45);
-    dir.y = Math.max(-0.08, dir.y);
-    dir.normalize();
+    const dir = this.shotDir(origin);
     sharedSfx.gunshot();
     sharedSfx.web();
     let hitT = GUN_RANGE;
     let hitPed: Ped | null = null;
     let hitCop: Cop | null = null;
+    let hitCar: Car | null = null;
     if (this.interior === "street") {
       for (const b of this.city.colliders) {
         const t = this.rayAABB(origin, dir, b);
-        if (t > 0.2 && t < hitT) { hitT = t; hitPed = null; hitCop = null; }
+        if (t > 0.2 && t < hitT) { hitT = t; hitPed = null; hitCop = null; hitCar = null; }
       }
     }
     for (const p of this.peds) {
       if (p.state === "down" || p.state === "webbed") continue;
       if (p.role === "clerk" || p.role === "fence") continue;
       if (this.interior !== "street") continue;
-      const t = this.raySphere(origin, dir, p.x, 0.9, p.z, 0.55);
-      if (t > 0.2 && t < hitT) { hitT = t; hitPed = p; hitCop = null; }
+      const t = this.raySphere(origin, dir, p.x, 0.9, p.z, 0.7);
+      if (t > 0.2 && t < hitT) { hitT = t; hitPed = p; hitCop = null; hitCar = null; }
     }
     for (const c of this.cops) {
       if (c.state === "down" || c.state === "webbed" || this.interior !== "street") continue;
-      const t = this.raySphere(origin, dir, c.x, 0.9, c.z, 0.55);
-      if (t > 0.2 && t < hitT) { hitT = t; hitPed = null; hitCop = c; }
+      const t = this.raySphere(origin, dir, c.x, 0.9, c.z, 0.7);
+      if (t > 0.2 && t < hitT) { hitT = t; hitPed = null; hitCop = c; hitCar = null; }
+    }
+    if (this.interior === "street") {
+      for (const car of this.cars) {
+        if (car.wrecked) continue;
+        const t = this.raySphere(origin, dir, car.x, 0.62, car.z, 1.45);
+        if (t > 0.35 && t < hitT) { hitT = t; hitPed = null; hitCop = null; hitCar = car; }
+      }
     }
     const end = origin.add(dir.scale(hitT));
     this.spawnShotVfx(origin, end, dir);
     this.spawnSpark(end);
     if (hitPed) this.webTarget(hitPed, false);
     if (hitCop) this.webTarget(hitCop, true);
-    if (hitPed || hitCop) this.notifyCrime(this.player.x, this.player.z, "gun");
+    if (hitCar) this.hurtCar(hitCar, GUN_DMG * 0.42, false);
+    if (hitPed || hitCop || hitCar) this.notifyCrime(this.player.x, this.player.z, "gun");
+  }
+
+  private shotDir(origin: Vector3): Vector3 {
+    const raw = lookDir(this.camYaw, this.camPitch * 0.45);
+    raw.y = Math.max(-0.12, raw.y);
+    raw.normalize();
+    const assist = this.canAimAssist() ? this.assistHit : null;
+    if (!assist) return raw;
+    const to = new Vector3(assist.x - origin.x, assist.y - origin.y, assist.z - origin.z);
+    const len = to.length();
+    if (len < 0.25) return raw;
+    to.scaleInPlace(1 / len);
+    const ang = Math.acos(clamp(Vector3.Dot(raw, to), -1, 1));
+    const cone = this.input.showTouch ? ASSIST.bulletTouch : ASSIST.bulletMouse;
+    if (ang <= cone) return to;
+    if (ang <= cone * 1.55) {
+      const blended = Vector3.Lerp(raw, to, 0.64);
+      blended.normalize();
+      return blended;
+    }
+    return raw;
   }
 
   private applyGunPose() {
@@ -1673,6 +1757,29 @@ export class ViceGame {
       this.aimOrb.setEnabled(false);
     }
     if (this.mode !== "swing" && this.mode !== "zip") this.silk.setEnabled(false);
+    const showAssist = !!this.assistHit && this.canAimAssist() && (this.input.fireHeld || this.player.fireT > 0);
+    if (showAssist && this.assistHit) {
+      this.assistMark.setEnabled(true);
+      this.assistMark.position.set(this.assistHit.x, this.assistHit.y + 0.12, this.assistHit.z);
+      const pulse = 0.92 + Math.sin(this.time * 11) * 0.08;
+      let size = pulse;
+      switch (this.assistHit.kind) {
+        case "car":
+          size = pulse * 1.7;
+          break;
+        case "ped":
+        case "cop":
+          size = pulse;
+          break;
+        default: {
+          const _never: never = this.assistHit.kind;
+          void _never;
+        }
+      }
+      this.assistMark.scaling.setAll(size);
+    } else {
+      this.assistMark.setEnabled(false);
+    }
     this.placeMarker();
   }
 
