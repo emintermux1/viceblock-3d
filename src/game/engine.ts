@@ -2436,9 +2436,10 @@ export class ViceGame {
 
   private nearSexSpot(): boolean {
     if (this.interior !== "club" || this.drive) return false;
-    if (dist2(this.player.x, this.player.z, CLUB_VIP.x, CLUB_VIP.z) < 2.6) return true;
+    if (this.inVipSuite()) return true;
+    if (dist2(this.player.x, this.player.z, CLUB_VIP.x, CLUB_VIP.z) < 3.2) return true;
     for (const b of CLUB_BEDS) {
-      if (dist2(this.player.x, this.player.z, b.x, b.z) < 2.5) return true;
+      if (dist2(this.player.x, this.player.z, b.x, b.z) < 2.8) return true;
     }
     return false;
   }
@@ -2742,7 +2743,7 @@ export class ViceGame {
     );
     h.nearSex = !this.drive && !this.sexWith && this.nearSexSpot();
     h.inSex = !!this.sexWith;
-    h.sexActs = (h.nearSex || h.inSex) && this.interior === "club";
+    h.sexActs = !this.drive && this.interior === "club" && (h.nearSex || h.inSex || this.inVipSuite());
     h.sexTalk = this.sexTalk;
     h.sexTalkEn = this.sexTalkEn;
     h.sexKind = this.sexWith ? this.sexKind : "";

@@ -6,7 +6,7 @@ import { sharedSfx } from "./game/audio";
 import type { ViceGame } from "./game/engine";
 import { Input } from "./game/input";
 import { emptyHud, type CharacterId, type HudState } from "./game/types";
-import { HUD } from "./ui/HUD";
+import { HUD, SexActBar } from "./ui/HUD";
 import { PauseMenu } from "./ui/PauseMenu";
 import { TitleScreen } from "./ui/TitleScreen";
 import { CharacterSelect } from "./ui/CharacterSelect";
@@ -106,7 +106,7 @@ function Shell() {
           <div className="stage">
             <GameView input={inputRef.current} frozen={paused} muted={muted} character={character} onHud={onHud} gameRef={gameRef} />
           </div>
-          <HUD hud={hud} onTapMusic={() => bootAudio()} onSexAct={(k) => inputRef.current.queueAct(k)} />
+          <HUD hud={hud} onTapMusic={() => bootAudio()} />
           <TouchControls
             input={inputRef.current}
             hidden={!touch || paused}
@@ -119,8 +119,11 @@ function Shell() {
             inDance={hud.inDance}
             nearSex={hud.nearSex}
             inSex={hud.inSex}
+            sexActs={hud.sexActs}
+            sexKind={hud.sexKind}
             enterVerb={hud.enterVerb}
           />
+          <SexActBar visible={hud.sexActs} kind={hud.sexKind} onPick={(k) => inputRef.current.queueAct(k)} />
           {paused && (
             <PauseMenu
               muted={muted}

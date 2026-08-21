@@ -244,22 +244,31 @@ button, .wallet-adapter-button { font-family: inherit; }
 }
 .hud-sex-talk b { display: block; color: #ff4da6; font-size: 15px; }
 .hud-sex-talk i { display: block; font-style: normal; opacity: 0.82; font-size: 13px; margin-top: 3px; }
-.hud-sex-acts {
-  position: absolute; left: 50%; bottom: calc(18% + env(safe-area-inset-bottom, 0px));
+.sex-act-bar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(22% + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
-  display: flex; gap: 8px; z-index: 8; pointer-events: auto;
+  display: flex;
+  gap: 10px;
+  z-index: 12;
+  pointer-events: auto;
 }
-.hud-sex-acts button {
-  background: rgba(28, 6, 18, 0.86);
-  border: 1px solid #ff4da6;
+.sex-act-btn {
+  min-width: 92px;
+  background: rgba(28, 6, 18, 0.92);
+  border: 2px solid #ff4da6;
   color: #ffd0e4;
-  letter-spacing: 0.12em;
-  font-weight: 700;
-  font-size: 12px;
-  padding: 7px 12px;
+  letter-spacing: 0.16em;
+  font-weight: 800;
+  font-size: 16px;
+  padding: 12px 16px;
   cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 0 16px rgba(255, 77, 166, 0.35);
 }
-.hud-sex-acts button.on { background: #ff4da6; color: #1a0410; }
+.sex-act-btn.sakso { min-width: 110px; }
+.sex-act-btn.on { background: #ff4da6; color: #1a0410; }
 .hud-sub {
   position: absolute; left: 50%; top: calc(12px + env(safe-area-inset-top, 0px));
   transform: translateX(-50%);
@@ -347,6 +356,36 @@ button, .wallet-adapter-button { font-family: inherit; }
   right: 168px; bottom: 82px; width: 64px; height: 54px;
   font-size: 11px; letter-spacing: 0.08em; background: rgba(8,28,32,0.82);
 }
+.pad-climb.up { bottom: 220px; }
+.pad-sex-col {
+  position: absolute;
+  right: 168px;
+  bottom: 82px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 8;
+}
+.pad-sex {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  width: 78px;
+  height: 48px;
+  border-radius: 10px;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  background: rgba(48, 8, 28, 0.9);
+  border-color: #ff4da6;
+}
+.pad-sakso {
+  width: 86px;
+  height: 52px;
+  font-size: 14px;
+  background: rgba(90, 10, 48, 0.94);
+}
+.pad-sex.on { background: #ff4da6; color: #1a0410; }
 
 .wallet-adapter-button { background: #122028 !important; }
 
@@ -372,7 +411,8 @@ button, .wallet-adapter-button { font-family: inherit; }
   .hud-job span { font-size: 12px; }
   .hud-prompt { bottom: calc(40% + env(safe-area-inset-bottom, 0px)); font-size: 13px; padding: 6px 12px; }
   .hud-sex-talk { bottom: calc(48% + env(safe-area-inset-bottom, 0px)); font-size: 13px; }
-  .hud-sex-acts { bottom: calc(32% + env(safe-area-inset-bottom, 0px)); }
+  .sex-act-bar { bottom: calc(38% + env(safe-area-inset-bottom, 0px)); }
+  .sex-act-btn { min-width: 78px; font-size: 14px; padding: 10px 12px; }
   .hud-sub { top: calc(58px + env(safe-area-inset-top, 0px)); font-size: 13px; max-width: 70vw; }
   .hud-club-ping { top: calc(84px + env(safe-area-inset-top, 0px)); font-size: 12px; padding: 5px 12px; }
   .hud-search { font-size: 9px; }
