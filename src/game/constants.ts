@@ -48,11 +48,13 @@ export const LOC = {
   spawn: { x: -26, z: 6 },
   garage: { x: -50, z: 50 },
   mart: { x: 14, z: 28 },
-  carA: { x: -6, z: 16, yaw: 0.2 },
+  carA: { x: -22, z: 12, yaw: 0.15 },
   carB: { x: 34, z: 22, yaw: Math.PI * 0.5 },
   carC: { x: 46, z: 56, yaw: -0.4 },
-  club: { x: -16, z: 40.5 },
+  club: { x: -6, z: 22 },
 };
+
+export const CLUB_SIZE = { w: 16, d: 12, h: 15 };
 
 export function clamp(v: number, a: number, b: number) {
   return Math.max(a, Math.min(b, v));

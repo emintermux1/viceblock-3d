@@ -5,7 +5,7 @@ import {
 import {
   asphaltMat, flareTex, makeDecal, makeSign, mat, roadMat, sidewalkMat, tickCityArt, uniqueMat, waterMat, woodDockMat,
 } from "./art";
-import { FENCE, INT, LOC } from "./constants";
+import { CLUB_SIZE, FENCE, INT, LOC } from "./constants";
 import {
   makeAwning, makeBench, makeBillboard, makeBird, makeBoat, makeBollard, makeBuilding, makeCone, makeContainer,
   makeCrane, makeCrate, makeDumpster, makeFence, makeHydrant, makeLamp, makeNewsbox, makePalm,
@@ -300,6 +300,7 @@ function placeBlocks(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
     if (near(b.x, b.z, LOC.spawn.x, LOC.spawn.z, 12)) continue;
     if (near(b.x, b.z, LOC.garage.x, LOC.garage.z, 14)) continue;
     if (near(b.x, b.z, LOC.mart.x, LOC.mart.z, 12)) continue;
+    if (near(b.x, b.z, LOC.club.x, LOC.club.z, 16)) continue;
     const yaw = b.yaw ?? faceRoadYaw(b.x, b.z);
     makeBuilding(scene, b.x, b.z, b.w, b.d, b.h, b.hex, b.style, yaw);
     colliders.push(boxAABB(b.x, b.z, b.w, b.d, b.h, yaw));
@@ -321,6 +322,7 @@ function placeBlocks(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
       if (near(x0, z0, LOC.spawn.x, LOC.spawn.z, 14)) continue;
       if (near(x0, z0, LOC.garage.x, LOC.garage.z, 16)) continue;
       if (near(x0, z0, LOC.mart.x, LOC.mart.z, 14)) continue;
+      if (near(x0, z0, LOC.club.x, LOC.club.z, 18)) continue;
       if (extras.some((b) => near(x0, z0, b.x, b.z, 12))) continue;
       if (((ix * 5 + iz * 11) % 7) === 0) continue;
 
@@ -435,27 +437,63 @@ function placeStrip(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
 function placeClub(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
   const x = LOC.club.x;
   const z = LOC.club.z;
-  makeBuilding(scene, x, z, 15, 10, 13, "#2a0818", "shop", Math.PI);
-  colliders.push(boxAABB(x, z, 15, 10, 13, Math.PI));
-  addBuildingAnchors(anchors, x, z, 15, 10, 13);
-  makeSign(scene, "SALT GLOW", x, 8.6, z - 5.2, 12.4, 1.55, "#12010c", "#ff4da6", 0);
-  makeSign(scene, "SALT GLOW", x, 8.6, z + 5.2, 12.4, 1.55, "#12010c", "#ff4da6", Math.PI);
-  makeSign(scene, "NOVA CITY", x, 7.2, z - 5.15, 6.2, 0.55, "#100810", "#ffc83d", 0);
-  makeAwning(scene, x, 3.4, z - 5.15, 13.6, "#c03050", 0);
-  const canopy = MeshBuilder.CreateBox("clubcan", { width: 4.2, height: 0.12, depth: 1.8 }, scene);
-  canopy.position.set(x, 2.85, z - 6.1);
+  const w = CLUB_SIZE.w;
+  const d = CLUB_SIZE.d;
+  const h = CLUB_SIZE.h;
+  makeBuilding(scene, x, z, w, d, h, "#2a0818", "shop", Math.PI);
+  colliders.push(boxAABB(x, z, w, d, h, Math.PI));
+  addBuildingAnchors(anchors, x, z, w, d, h);
+
+  const south = z - d * 0.5;
+  const north = z + d * 0.5;
+  const west = x - w * 0.5;
+  const east = x + w * 0.5;
+
+  makeSign(scene, "SALT GLOW", x, 11.4, south - 0.24, 15.2, 2.5, "#12010c", "#ff4da6", 0);
+  makeSign(scene, "SALT GLOW", x, 11.4, north + 0.24, 15.2, 2.5, "#12010c", "#ff4da6", Math.PI);
+  makeSign(scene, "SALT GLOW", west - 0.24, 10.6, z, 11.4, 2.15, "#12010c", "#ff4da6", -Math.PI / 2);
+  makeSign(scene, "SALT GLOW", east + 0.24, 10.6, z, 11.4, 2.15, "#12010c", "#ff4da6", Math.PI / 2);
+  makeSign(scene, "SALT GLOW", x, h + 2.55, z - 0.18, 15.8, 2.9, "#12010c", "#ff4da6", 0);
+  makeSign(scene, "SALT GLOW", x, h + 2.55, z + 0.18, 15.8, 2.9, "#12010c", "#ff4da6", Math.PI);
+  const roofBar = MeshBuilder.CreateBox("clubroofn", { width: 15.4, height: 1.15, depth: 0.38 }, scene);
+  roofBar.position.set(x, h + 1.15, z);
+  roofBar.material = mat(scene, "#ff4da6", 0.88);
+
+  makeAwning(scene, x, 3.7, south - 0.12, 15.4, "#c03050", 0);
+  const canopy = MeshBuilder.CreateBox("clubcan", { width: 8.6, height: 0.16, depth: 3.4 }, scene);
+  canopy.position.set(x, 3.08, south - 1.8);
   canopy.material = mat(scene, "#1a0810", 0.08);
-  const door = MeshBuilder.CreateBox("clubdoor", { width: 2.2, height: 2.4, depth: 0.12 }, scene);
-  door.position.set(x, 1.25, z - 5.08);
+  const canGlow = MeshBuilder.CreateBox("clubcang", { width: 8.4, height: 0.06, depth: 3.2 }, scene);
+  canGlow.position.set(x, 2.97, south - 1.8);
+  canGlow.material = mat(scene, "#ff4da6", 0.72);
+
+  const door = MeshBuilder.CreateBox("clubdoor", { width: 2.9, height: 2.75, depth: 0.16 }, scene);
+  door.position.set(x, 1.42, south - 0.1);
   door.material = mat(scene, "#2a1020", 0.12);
-  const glow = new PointLight("clubglow", new Vector3(x, 6.4, z - 6), scene);
-  glow.diffuse = new Color3(1, 0.22, 0.55);
-  glow.intensity = 1.15;
-  glow.range = 28;
-  const wash = new PointLight("clubwash", new Vector3(x, 4.2, z - 8), scene);
-  wash.diffuse = new Color3(1, 0.18, 0.62);
-  wash.intensity = 0.55;
-  wash.range = 18;
+  const doorGlow = MeshBuilder.CreateBox("clubdg", { width: 3.2, height: 3.0, depth: 0.07 }, scene);
+  doorGlow.position.set(x, 1.48, south - 0.2);
+  doorGlow.material = mat(scene, "#ff4da6", 0.6);
+
+  const washG = MeshBuilder.CreateGround("clubwashg", { width: 16.4, height: 8.2 }, scene);
+  washG.position.set(x, 0.03, south - 3.3);
+  washG.material = mat(scene, "#4a1028", 0.32);
+
+  const glow = new PointLight("clubglow", new Vector3(x, 8.6, south - 2.2), scene);
+  glow.diffuse = new Color3(1, 0.18, 0.55);
+  glow.intensity = 1.9;
+  glow.range = 44;
+  const wash = new PointLight("clubwash", new Vector3(x, 4.8, south - 5.2), scene);
+  wash.diffuse = new Color3(1, 0.16, 0.62);
+  wash.intensity = 1.1;
+  wash.range = 30;
+  const roofL = new PointLight("clubroof", new Vector3(x, h + 3.4, z), scene);
+  roofL.diffuse = new Color3(1, 0.2, 0.7);
+  roofL.intensity = 1.2;
+  roofL.range = 38;
+  const westL = new PointLight("clubwest", new Vector3(west - 2.2, 7.2, z), scene);
+  westL.diffuse = new Color3(1, 0.2, 0.55);
+  westL.intensity = 0.9;
+  westL.range = 26;
 }
 
 function placeDocks(scene: Scene, colliders: AABB[], anchors: Anchor[]) {
@@ -768,8 +806,8 @@ function buildInteriors(scene: Scene): CityData["interiors"] {
       id: "club", colliders: clubC,
       spawnX: INT.club.ox, spawnZ: INT.club.oz - 5.6,
       exitX: INT.club.ox, exitZ: INT.club.oz - 6.4,
-      streetX: LOC.club.x, streetZ: LOC.club.z - 7.2,
-      doorX: LOC.club.x, doorZ: LOC.club.z - 5.6,
+      streetX: LOC.club.x, streetZ: LOC.club.z - 8.4,
+      doorX: LOC.club.x, doorZ: LOC.club.z - 6.6,
       camDist: 6.4,
     },
   };
@@ -844,5 +882,11 @@ function buildClubRoom(scene: Scene): AABB[] {
   fog.maxEmitPower = 0.12;
   fog.updateSpeed = 0.02;
   fog.start();
+  if (!cols.length) {
+    cols.push(boxAABB(cx, cz + 8, 18, 0.4, 5.2, 0, 0));
+    cols.push(boxAABB(cx, cz - 8, 18, 0.4, 5.2, 0, 0));
+    cols.push(boxAABB(cx + 9, cz, 0.4, 16, 5.2, 0, 0));
+    cols.push(boxAABB(cx - 9, cz, 0.4, 16, 5.2, 0, 0));
+  }
   return cols;
 }

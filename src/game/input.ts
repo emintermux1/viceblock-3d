@@ -23,6 +23,7 @@ export class Input {
   zipHeld = false;
   zipPressed = false;
   climbHeld = false;
+  climbPressed = false;
 
   stickActive = false;
   stickBaseX = 0;
@@ -42,6 +43,7 @@ export class Input {
   private zipId: number | null = null;
   private climbTouch = false;
   private climbId: number | null = null;
+  private climbWas = false;
   private zipWas = false;
   private sprintHeld = false;
   private jumpTouch = false;
@@ -189,6 +191,7 @@ export class Input {
     this.salinHeld = this.swingTouch;
     this.swingHeld = this.swingTouch || this.down("f");
     this.climbHeld = this.climbTouch || this.down("c");
+    this.climbPressed = !this.climbWas && this.climbHeld;
     this.zipHeld = this.down("e") || this.zipTouch;
     this.zipPressed = (!this.zipWas && this.zipTouch) || this.edge("e");
     if (this.down("q")) this.lookDX -= 22;
@@ -208,13 +211,14 @@ export class Input {
     this.mouseWas = this.mouseHeld;
     this.jumpWas = this.jumpTouch;
     this.zipWas = this.zipTouch;
+    this.climbWas = this.climbHeld;
     this.prev = new Set(this.keys);
   }
 
   endFrame() {
     this.shootPressed = this.enterPressed = this.jumpPressed = false;
     this.reloadPressed = this.meleePressed = this.pausePressed = false;
-    this.surrenderPressed = this.talkPressed = this.zipPressed = false;
+    this.surrenderPressed = this.talkPressed = this.zipPressed = this.climbPressed = false;
     this.lookDX = 0;
     this.lookDY = 0;
   }

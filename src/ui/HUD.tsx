@@ -41,6 +41,7 @@ export function HUD({ hud, onTapMusic }: Props) {
         {hud.searching ? <div className="hud-search">SEARCHING</div> : null}
       </div>
       <div className="hud-map"><MiniMap hud={hud} /></div>
+      {hud.clubPing && hud.clubHint ? <div className="hud-club-ping">{hud.clubHint}</div> : null}
       {hud.prompt ? <div className="hud-prompt">{hud.prompt}</div> : null}
       {hud.subtitle ? <div className="hud-sub">{hud.subtitle}</div> : null}
       {hud.busted ? <div className="hud-bust">BUSTED</div> : null}
@@ -115,6 +116,7 @@ function MiniMap({ hud }: { hud: HudState }) {
     };
     pip(LOC.garage.x, LOC.garage.z, "#2ef2d0", 4);
     pip(LOC.mart.x, LOC.mart.z, "#ffc83d", 4);
+    pip(LOC.club.x, LOC.club.z, "#ff4da6", hud.clubPing ? 6 : 4);
     for (const car of hud.mapCars) pip(car.x, car.z, "#c8d0d4", 2.2);
     if (Math.abs(hud.mapGoalX) < 200) pip(hud.mapGoalX, hud.mapGoalZ, "#ffc83d", 5);
 
@@ -132,7 +134,7 @@ function MiniMap({ hud }: { hud: HudState }) {
     ctx.beginPath();
     ctx.arc(S / 2, S / 2, S / 2 - 1.5, 0, Math.PI * 2);
     ctx.stroke();
-  }, [hud.mapX, hud.mapZ, hud.mapYaw, hud.mapGoalX, hud.mapGoalZ, hud.mapCars]);
+  }, [hud.mapX, hud.mapZ, hud.mapYaw, hud.mapGoalX, hud.mapGoalZ, hud.mapCars, hud.clubPing]);
 
   return (
     <div className="hud-minimap">

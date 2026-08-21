@@ -41,6 +41,8 @@ export type HudState = {
   nearCar: boolean;
   nearDoor: boolean;
   canClimb: boolean;
+  clubPing: boolean;
+  clubHint: string;
 };
 
 export const emptyHud = (): HudState => ({
@@ -78,6 +80,8 @@ export const emptyHud = (): HudState => ({
   nearCar: false,
   nearDoor: false,
   canClimb: false,
+  clubPing: false,
+  clubHint: "",
 });
 
 export type AABB = {
