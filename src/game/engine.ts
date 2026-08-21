@@ -353,7 +353,7 @@ export class ViceGame {
       return;
     }
 
-    const nearCar = this.nearestCar(2.7);
+    const nearCar = this.nearestCar(3.2);
     const streetBin = !!nearCar && this.mode === "ground" && p.y < 1.35;
     if (streetBin && this.enterLock <= 0 && ins.enterPressed) {
       this.tryEnterExit();
@@ -590,14 +590,16 @@ export class ViceGame {
 
   private tryStartClimb(): boolean {
     const p = this.player;
-    const w = nearestWall(p.x, Math.max(0.4, p.y), p.z, this.city.colliders, 1.35);
+    const w = nearestWall(p.x, Math.max(0.35, p.y + 0.4), p.z, this.city.colliders, 1.85);
     if (!w) return false;
     const fwd = lookDir(this.camYaw, 0);
     const right = new Vector3(fwd.z, 0, -fwd.x);
     const mx = fwd.x * -this.input.moveY + right.x * this.input.moveX;
     const mz = fwd.z * -this.input.moveY + right.z * this.input.moveX;
     const into = -mx * w.nx - mz * w.nz;
-    if (!this.input.climbHeld && into < 0.28) return false;
+    const blockedInto = this.blocked(p.x - w.nx * 0.55, p.z - w.nz * 0.55, PLAYER_R);
+    if (!this.input.climbHeld && into < 0.18 && !blockedInto) return false;
+    if (!this.input.climbHeld && into < 0.18 && Math.hypot(this.input.moveX, this.input.moveY) < 0.2) return false;
     this.stickWall(w);
     return true;
   }
@@ -605,7 +607,7 @@ export class ViceGame {
   private maybeCrawl() {
     if (this.mode !== "air") return;
     const p = this.player;
-    const w = nearestWall(p.x, p.y, p.z, this.city.colliders, this.input.climbHeld ? 1.55 : 1.05);
+    const w = nearestWall(p.x, p.y, p.z, this.city.colliders, this.input.climbHeld ? 1.9 : 1.2);
     if (!w) return;
     if (!this.input.climbHeld && p.y < 0.55) return;
     this.stickWall(w);
@@ -1667,8 +1669,8 @@ export class ViceGame {
   private missions(_dt: number) {
     if (this.interior === "jail") return;
     this.prompt = "";
-    const nearCar = this.nearestCar(2.7);
-    const canClimb = !!nearestWall(this.player.x, Math.max(0.4, this.player.y), this.player.z, this.city.colliders, 1.35);
+    const nearCar = this.nearestCar(3.2);
+    const canClimb = !!nearestWall(this.player.x, Math.max(0.35, this.player.y + 0.4), this.player.z, this.city.colliders, 1.85);
 
     switch (this.mission) {
       case "launch":
@@ -1758,8 +1760,8 @@ export class ViceGame {
     h.mode = this.mode;
     h.speed = Math.hypot(this.player.vx, this.player.vy, this.player.vz);
     h.canAttach = !!this.aim && !this.drive;
-    h.nearCar = !!this.nearestCar(2.7) && this.mode === "ground" && this.player.y < 1.35 && !this.drive;
-    h.canClimb = !this.drive && !!nearestWall(this.player.x, Math.max(0.4, this.player.y), this.player.z, this.city.colliders, 1.35);
+    h.nearCar = !!this.nearestCar(3.2) && this.mode === "ground" && this.player.y < 1.35 && !this.drive;
+    h.canClimb = !this.drive && !!nearestWall(this.player.x, Math.max(0.35, this.player.y + 0.4), this.player.z, this.city.colliders, 1.85);
     h.fade = this.fade;
     h.busted = this.busted;
     h.fps = this.fps;
