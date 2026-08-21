@@ -36,10 +36,16 @@ export function webSuitMat(scene: Scene, id: string, base: string, line: string)
   const ctx = tex.getContext();
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 1400; i++) {
+    const n = hash(i * 29 + id.length * 7);
+    ctx.fillStyle = n > 0.55 ? shadeHex(base, 1.14) : shadeHex(base, 0.82);
+    ctx.globalAlpha = 0.18;
+    ctx.fillRect((i * 53) % 256, (i * 37) % 256, 1 + (n * 2), 1);
+  }
+  ctx.globalAlpha = 0.7;
   ctx.strokeStyle = line;
-  ctx.globalAlpha = 0.82;
   const step = id === "cupsey" ? 16 : id === "orangie" ? 28 : 22;
-  ctx.lineWidth = id === "orangie" ? 2.4 : 1.7;
+  ctx.lineWidth = id === "orangie" ? 2.1 : 1.5;
   for (let y = -step; y < 256 + step; y += step) {
     ctx.beginPath();
     for (let x = 0; x <= 256; x += step) {
@@ -62,10 +68,24 @@ export function webSuitMat(scene: Scene, id: string, base: string, line: string)
   tex.update();
   m = new StandardMaterial(key, scene);
   m.diffuseTexture = tex;
-  m.emissiveTexture = tex;
   m.diffuseColor = Color3.FromHexString(base);
-  m.emissiveColor = Color3.FromHexString(line).scale(0.16);
-  m.specularColor = new Color3(0.18, 0.18, 0.18);
+  m.emissiveColor = Color3.FromHexString(line).scale(0.045);
+  m.specularColor = new Color3(0.07, 0.07, 0.07);
+  m.specularPower = 8;
+  matCache.set(key, m);
+  return m;
+}
+
+export function metalMat(scene: Scene, hex: string, shine = 0.55): StandardMaterial {
+  const key = "metal-" + hex + "-" + shine;
+  let m = matCache.get(key);
+  if (m && m.getScene() === scene) return m;
+  m = new StandardMaterial(key, scene);
+  const c = Color3.FromHexString(hex);
+  m.diffuseColor = c;
+  m.specularColor = new Color3(shine, shine * 0.96, shine * 0.9);
+  m.specularPower = 96;
+  m.emissiveColor = c.scale(0.04);
   matCache.set(key, m);
   return m;
 }
@@ -309,10 +329,21 @@ export function asphaltMat(scene: Scene): StandardMaterial {
   ctx.moveTo(20, 40);
   ctx.quadraticCurveTo(120, 90, 230, 60);
   ctx.stroke();
+  ctx.strokeStyle = "rgba(180,200,220,0.08)";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(0, 180);
+  ctx.quadraticCurveTo(90, 200, 256, 160);
+  ctx.stroke();
   tex.update();
   tex.wrapU = Texture.WRAP_ADDRESSMODE;
   tex.wrapV = Texture.WRAP_ADDRESSMODE;
-  m = texMat(scene, key, tex, new Color3(0.08, 0.07, 0.06), 0.04);
+  m = new StandardMaterial(key, scene);
+  m.diffuseTexture = tex;
+  m.specularColor = new Color3(0.32, 0.3, 0.28);
+  m.specularPower = 42;
+  m.emissiveColor = new Color3(0.03, 0.025, 0.02);
+  matCache.set(key, m);
   return m;
 }
 
@@ -416,7 +447,13 @@ export function roadMat(scene: Scene, vertical: boolean): StandardMaterial {
   ctx.fillStyle = "#c4b46a";
   for (let y = 10; y < 512; y += 28) ctx.fillRect(30, y, 4, 13);
   tex.update();
-  return texMat(scene, key + "m", tex, new Color3(0.12, 0.1, 0.06), 0.04);
+  m = new StandardMaterial(key + "m", scene);
+  m.diffuseTexture = tex;
+  m.specularColor = new Color3(0.26, 0.24, 0.2);
+  m.specularPower = 36;
+  m.emissiveColor = new Color3(0.04, 0.03, 0.02);
+  matCache.set(key + "m", m);
+  return m;
 }
 
 export function flareTex(scene: Scene): DynamicTexture {
