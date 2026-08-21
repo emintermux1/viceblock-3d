@@ -1,4 +1,5 @@
 import { Vector3 } from "@babylonjs/core";
+import { resolveCapsule, standFloor } from "./collide";
 import { clamp } from "./constants";
 import { lookDir } from "./meshes";
 import type { AABB } from "./types";
@@ -183,42 +184,14 @@ export function roofY(x: number, z: number, cols: AABB[], pad = 0): number {
 }
 
 export function standY(x: number, z: number, cols: AABB[]): number {
-  const r = 0.32;
-  return Math.max(
-    roofY(x, z, cols, 0.42),
-    roofY(x + r, z, cols, 0.08),
-    roofY(x - r, z, cols, 0.08),
-    roofY(x, z + r, cols, 0.08),
-    roofY(x, z - r, cols, 0.08),
-  );
+  return standFloor(x, z, cols, 0.12);
 }
 
 export function unstickPlayer(
   p: { x: number; y: number; z: number; vx: number; vy: number; vz: number },
   cols: AABB[],
 ): "roof" | "out" | "ok" {
-  let result: "roof" | "out" | "ok" = "ok";
-  for (const b of cols) {
-    if (p.x <= b.minX || p.x >= b.maxX || p.z <= b.minZ || p.z >= b.maxZ) continue;
-    if (p.y >= b.maxY - 0.06) continue;
-    if (p.y >= b.maxY - 1.45) {
-      p.y = b.maxY;
-      if (p.vy < 0) p.vy = 0;
-      result = "roof";
-      continue;
-    }
-    const left = p.x - b.minX;
-    const right = b.maxX - p.x;
-    const back = p.z - b.minZ;
-    const fwd = b.maxZ - p.z;
-    const m = Math.min(left, right, back, fwd);
-    if (m === left) { p.x = b.minX - 0.55; if (p.vx > 0) p.vx = 0; }
-    else if (m === right) { p.x = b.maxX + 0.55; if (p.vx < 0) p.vx = 0; }
-    else if (m === back) { p.z = b.minZ - 0.55; if (p.vz > 0) p.vz = 0; }
-    else { p.z = b.maxZ + 0.55; if (p.vz < 0) p.vz = 0; }
-    result = "out";
-  }
-  return result;
+  return resolveCapsule(p, cols);
 }
 
 export type WallHit = { x: number; y: number; z: number; nx: number; nz: number; maxY: number; d: number };
