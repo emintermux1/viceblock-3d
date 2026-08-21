@@ -82,9 +82,9 @@ function dressTower(scene: Scene, root: Mesh, w: number, d: number, h: number, h
   crown.position.set(0, h + th * 0.5, 0);
   crown.material = facadeMat(scene, hex, "tower", "front");
   crown.parent = root;
-  box(scene, root, "ac", 1.5, 0.6, 1.2, w * 0.18, h + 0.55, d * 0.12, "#2a3038");
-  box(scene, root, "ac2", 1.1, 0.45, 0.9, -w * 0.16, h + 0.48, -d * 0.12, "#323840");
-  cyl(scene, root, "tk", 1.2, 1.35, -w * 0.12, h + 0.85, d * 0.12, "#3a4448");
+  makeAC(scene, w * 0.18, h, d * 0.12, 0.2).parent = root;
+  makeAC(scene, -w * 0.16, h, -d * 0.12, -0.4).parent = root;
+  makeRoofTank(scene, -w * 0.12, h, d * 0.12).parent = root;
   cyl(scene, root, "ant", 3.6, 0.08, w * 0.22, h + 2.0, -d * 0.14, "#1a1a1a", 6);
   const tip = MeshBuilder.CreateSphere("tip", { diameter: 0.18, segments: 6 }, scene);
   tip.position.set(w * 0.22, h + 3.8, -d * 0.14);
@@ -119,6 +119,8 @@ function dressWalkup(scene: Scene, root: Mesh, w: number, d: number, h: number) 
     box(scene, root, "lad", 0.07, 0.07, 0.3, w * 0.44, 0.45 + i * 0.5, d * 0.5 + 0.2, "#4a4038");
   }
   box(scene, root, "stoop", 2.1, 0.32, 1.15, 0, 0.16, d * 0.5 + 0.7, "#3a3834");
+  if ((Math.round(w * 10) % 3) !== 0) makeAC(scene, w * 0.22, h, -d * 0.1).parent = root;
+  if ((Math.round(d * 7) % 2) === 0) makeRoofTank(scene, -w * 0.18, h, d * 0.08).parent = root;
 }
 
 function dressWarehouse(scene: Scene, root: Mesh, w: number, d: number, h: number) {
@@ -240,6 +242,83 @@ export function makeNewsbox(scene: Scene, x: number, z: number): Mesh {
   box(scene, root, "n", 0.44, 0.72, 0.34, 0, 0.36, 0, "#1a4a88", 0.06);
   box(scene, root, "w", 0.38, 0.24, 0.04, 0, 0.5, 0.17, "#c8d0d8", 0.1);
   return root;
+}
+
+export function makeAC(scene: Scene, x: number, y: number, z: number, yaw = 0): Mesh {
+  const root = new Mesh("ac", scene);
+  root.position.set(x, y, z);
+  root.rotation.y = yaw;
+  box(scene, root, "u", 1.15, 0.55, 0.85, 0, 0.28, 0, "#3a4248");
+  box(scene, root, "fan", 0.7, 0.08, 0.7, 0, 0.58, 0, "#1a2024", 0.04);
+  box(scene, root, "vent", 1.05, 0.12, 0.08, 0, 0.22, 0.44, "#2a3034");
+  return root;
+}
+
+export function makeRoofTank(scene: Scene, x: number, y: number, z: number): Mesh {
+  const root = new Mesh("rtank", scene);
+  root.position.set(x, y, z);
+  cyl(scene, root, "tk", 1.35, 1.15, 0, 0.7, 0, "#4a5256", 8);
+  box(scene, root, "rim", 1.2, 0.08, 1.2, 0, 1.38, 0, "#2a3034");
+  cyl(scene, root, "pipe", 0.7, 0.12, 0.42, 0.4, 0.42, "#2a2a2c", 6);
+  return root;
+}
+
+export function makeAwning(scene: Scene, x: number, y: number, z: number, w: number, hex: string, yaw = 0): Mesh {
+  const root = new Mesh("awn", scene);
+  root.position.set(x, y, z);
+  root.rotation.y = yaw;
+  box(scene, root, "a", w, 0.08, 1.05, 0, 0, 0.4, hex, 0.12);
+  box(scene, root, "pL", 0.07, 0.7, 0.07, -w * 0.42, -0.32, 0.82, "#2a2020");
+  box(scene, root, "pR", 0.07, 0.7, 0.07, w * 0.42, -0.32, 0.82, "#2a2020");
+  return root;
+}
+
+export function makePlate(scene: Scene, text: string, x: number, z: number, yaw = 0, fg = "#efe6d0"): Mesh {
+  const root = new Mesh("plate", scene);
+  root.position.set(x, 0, z);
+  root.rotation.y = yaw;
+  cyl(scene, root, "pp", 2.6, 0.07, 0, 1.3, 0, "#3a3a38", 6);
+  const sign = makeSign(scene, text, 0, 2.55, 0.06, Math.max(1.8, text.length * 0.32), 0.42, "#1a1814", fg, 0);
+  sign.parent = root;
+  sign.position.set(0, 2.55, 0.06);
+  return root;
+}
+
+export function makeTrafficLight(scene: Scene, x: number, z: number, yaw = 0): Mesh {
+  const root = new Mesh("tlight", scene);
+  root.position.set(x, 0, z);
+  root.rotation.y = yaw;
+  cyl(scene, root, "p", 3.6, 0.1, 0, 1.8, 0, "#1a1c1e", 6);
+  box(scene, root, "head", 0.28, 0.72, 0.22, 0, 3.55, 0.18, "#141416");
+  const bulb = (name: string, y: number, hex: string, em: number) => {
+    const m = MeshBuilder.CreateBox(name, { width: 0.16, height: 0.16, depth: 0.08 }, scene);
+    m.position.set(0, y, 0.28);
+    m.material = uniqueMat(scene, hex, em, 0.2);
+    m.parent = root;
+  };
+  bulb("tlr", 3.78, "#ff2a2a", 0.9);
+  bulb("tly", 3.55, "#ffc83d", 0.15);
+  bulb("tlg", 3.32, "#2a8a3a", 0.1);
+  return root;
+}
+
+export function makeBird(scene: Scene, x: number, y: number, z: number): Mesh {
+  const root = new Mesh("bird", scene);
+  root.position.set(x, y, z);
+  box(scene, root, "bd", 0.08, 0.05, 0.18, 0, 0, 0, "#1a1a1c");
+  const wl = MeshBuilder.CreateBox("wingL", { width: 0.28, height: 0.02, depth: 0.08 }, scene);
+  wl.position.set(-0.16, 0.02, 0);
+  wl.material = mat(scene, "#2a2a30");
+  wl.parent = root;
+  const wr = MeshBuilder.CreateBox("wingR", { width: 0.28, height: 0.02, depth: 0.08 }, scene);
+  wr.position.set(0.16, 0.02, 0);
+  wr.material = mat(scene, "#2a2a30");
+  wr.parent = root;
+  return root;
+}
+
+export function makeWallTag(scene: Scene, text: string, x: number, y: number, z: number, w: number, h: number, yaw: number, fg: string): Mesh {
+  return makeSign(scene, text, x, y, z, w, h, "#141014", fg, yaw);
 }
 
 export function makeCone(scene: Scene, x: number, z: number): Mesh {
@@ -794,23 +873,28 @@ export function tickGunPose(mesh: Mesh, fireT: number, aiming: boolean) {
 }
 
 export function tickCrawlPose(mesh: Mesh, t: number) {
-  const s = Math.sin(t * 7.2) * 0.35;
+  const s = Math.sin(t * 6.4) * 0.42;
+  const reach = Math.sin(t * 6.4 + 0.8) * 0.28;
+  mesh.rotation.x = 0.08;
   for (const ch of mesh.getChildMeshes(false)) {
-    if (ch.name === "larm") ch.rotation.x = -2.4 + s;
-    else if (ch.name === "rarm") ch.rotation.x = -2.2 - s;
-    else if (ch.name === "lleg") ch.rotation.x = 0.4 + s;
-    else if (ch.name === "rleg") ch.rotation.x = 0.5 - s;
+    if (ch.name === "larm") { ch.rotation.x = -2.55 + s; ch.rotation.z = -0.18; }
+    else if (ch.name === "rarm") { ch.rotation.x = -2.35 - s; ch.rotation.z = 0.16; }
+    else if (ch.name === "lleg") ch.rotation.x = 0.55 + reach;
+    else if (ch.name === "rleg") ch.rotation.x = 0.62 - reach;
   }
 }
 
 export function tickSwingPose(mesh: Mesh, t: number, attached: boolean) {
-  const tuck = attached ? 0.85 : 0.35;
-  const pump = Math.sin(t * 8) * 0.12;
+  const tuck = attached ? 1.05 : 0.42;
+  const pump = Math.sin(t * 7.2) * 0.18;
+  const trail = Math.sin(t * 5.4) * 0.1;
+  mesh.rotation.x = attached ? 0.22 : 0.08;
+  mesh.rotation.z = trail * 0.15;
   for (const ch of mesh.getChildMeshes(false)) {
-    if (ch.name === "larm") ch.rotation.x = attached ? -2.3 : -1.1;
-    else if (ch.name === "rarm") ch.rotation.x = attached ? -2.15 + pump : -0.8;
-    else if (ch.name === "lleg") ch.rotation.x = tuck;
-    else if (ch.name === "rleg") ch.rotation.x = tuck * 0.7;
+    if (ch.name === "larm") ch.rotation.x = attached ? -2.45 + pump * 0.35 : -1.25;
+    else if (ch.name === "rarm") ch.rotation.x = attached ? -2.28 + pump : -0.95;
+    else if (ch.name === "lleg") { ch.rotation.x = tuck + pump * 0.25; ch.rotation.z = -0.12; }
+    else if (ch.name === "rleg") { ch.rotation.x = tuck * 0.78 - pump * 0.2; ch.rotation.z = 0.1; }
   }
 }
 
@@ -821,14 +905,14 @@ export function makeSilk(scene: Scene, hex: string): Mesh {
   return m;
 }
 
-export function placeSilk(mesh: Mesh, ax: number, ay: number, az: number, bx: number, by: number, bz: number) {
+export function placeSilk(mesh: Mesh, ax: number, ay: number, az: number, bx: number, by: number, bz: number, sag = 0) {
   const dx = bx - ax;
   const dy = by - ay;
   const dz = bz - az;
   const len = Math.hypot(dx, dy, dz) || 0.01;
   mesh.setEnabled(true);
-  mesh.position.set((ax + bx) * 0.5, (ay + by) * 0.5, (az + bz) * 0.5);
-  mesh.scaling.set(1, len, 1);
+  mesh.position.set((ax + bx) * 0.5, (ay + by) * 0.5 - sag, (az + bz) * 0.5);
+  mesh.scaling.set(1, len + sag * 0.35, 1);
   const dir = new Vector3(dx / len, dy / len, dz / len);
   const up = new Vector3(0, 1, 0);
   const axis = Vector3.Cross(up, dir);
@@ -840,18 +924,29 @@ export function placeSilk(mesh: Mesh, ax: number, ay: number, az: number, bx: nu
   }
 }
 
-export function tickWalk(mesh: Mesh, t: number, moving: boolean, readyCarry = false) {
-  const amp = moving ? 0.48 : 0;
-  const s = Math.sin(t * 9.4) * amp;
-  const bob = moving ? Math.abs(Math.sin(t * 9.4)) * 0.04 : 0;
+export function tickWalk(mesh: Mesh, t: number, moving: boolean, readyCarry = false, sprint = false) {
+  const rate = sprint ? 12.4 : 8.8;
+  const amp = moving ? (sprint ? 0.74 : 0.52) : 0;
+  const s = Math.sin(t * rate) * amp;
+  const bob = moving ? Math.abs(Math.sin(t * rate)) * (sprint ? 0.07 : 0.045) : 0;
+  const idle = !moving ? Math.sin(t * 1.7) * 0.045 : 0;
   mesh.position.y += bob;
+  mesh.rotation.x = moving ? (sprint ? 0.1 : 0.045) : idle * 0.35;
+  mesh.rotation.z = moving ? Math.sin(t * rate) * 0.03 : idle * 0.2;
   for (const ch of mesh.getChildMeshes(false)) {
-    if (ch.name === "lleg") ch.rotation.x = s;
-    else if (ch.name === "rleg") ch.rotation.x = -s;
-    else if (ch.name === "larm") ch.rotation.x = readyCarry ? -0.35 - s * 0.25 : -s * 0.7;
+    if (ch.name === "lleg") ch.rotation.x = moving ? s : idle * 0.4;
+    else if (ch.name === "rleg") ch.rotation.x = moving ? -s : -idle * 0.35;
+    else if (ch.name === "larm") {
+      ch.rotation.x = moving
+        ? (readyCarry ? -0.38 - s * 0.28 : -s * 0.85)
+        : (readyCarry ? -0.42 : -0.12 + idle);
+      ch.rotation.z = moving ? -0.08 : -0.04;
+    }
     else if (ch.name === "rarm") {
-      ch.rotation.x = readyCarry ? -0.52 + s * 0.16 : s * 0.7;
-      ch.rotation.z = readyCarry ? 0.06 : 0;
+      ch.rotation.x = moving
+        ? (readyCarry ? -0.55 + s * 0.14 : s * 0.85)
+        : (readyCarry ? -0.5 + idle * 0.4 : 0.1 - idle);
+      ch.rotation.z = readyCarry ? 0.07 : 0.04;
     }
   }
 }

@@ -529,19 +529,41 @@ export function makeDecal(scene: Scene, text: string, x: number, z: number, w: n
 export function tickCityArt(scene: Scene, t: number) {
   const water = scene.getMeshByName("water");
   if (water?.material instanceof StandardMaterial && water.material.diffuseTexture instanceof Texture) {
-    water.material.diffuseTexture.uOffset = t * 0.018;
-    water.material.diffuseTexture.vOffset = Math.sin(t * 0.15) * 0.04;
+    water.material.diffuseTexture.uOffset = t * 0.022;
+    water.material.diffuseTexture.vOffset = Math.sin(t * 0.18) * 0.055;
+    const shimmer = 0.42 + Math.sin(t * 1.4) * 0.08;
+    water.material.specularColor.set(shimmer, shimmer * 1.15, shimmer * 1.25);
   }
+  const phase = Math.floor(t / 3.2) % 3;
   for (const mesh of scene.meshes) {
     if (mesh.name === "palm") {
       mesh.rotation.z = Math.sin(t * 0.65 + mesh.position.x * 0.08) * 0.045;
     }
     if (mesh.name.startsWith("sign-") && mesh.material instanceof StandardMaterial) {
-      const flick = 0.62 + 0.12 * Math.sin(t * 6.2 + mesh.position.x);
-      mesh.material.emissiveColor.set(flick, flick * 0.88, flick * 0.7);
+      const flick = 0.58 + 0.16 * Math.sin(t * 7.1 + mesh.position.x) + (Math.sin(t * 23 + mesh.position.z) > 0.92 ? -0.18 : 0);
+      mesh.material.emissiveColor.set(flick, flick * 0.82, flick * 0.62);
     }
     if (mesh.name === "sundisc") {
       mesh.scaling.setAll(1 + Math.sin(t * 0.8) * 0.03);
+    }
+    if (mesh.name === "bird") {
+      mesh.position.x += Math.sin(t * 0.35 + mesh.position.z) * 0.012;
+      mesh.position.z += Math.cos(t * 0.28 + mesh.position.x) * 0.01;
+      mesh.rotation.y = t * 0.25 + mesh.position.x * 0.02;
+      for (const ch of mesh.getChildMeshes(false)) {
+        if (ch.name.startsWith("wing")) ch.rotation.z = Math.sin(t * 14 + mesh.position.x) * 0.55;
+      }
+    }
+    if (mesh.name === "steam") {
+      const lift = (t * 0.35 + mesh.position.x * 0.1) % 1.4;
+      mesh.position.y = 1.15 + lift;
+      mesh.scaling.setAll(0.7 + lift * 0.55);
+      if (mesh.material instanceof StandardMaterial) mesh.material.alpha = 0.2 * (1 - lift / 1.4);
+    }
+    if ((mesh.name === "tlr" || mesh.name === "tly" || mesh.name === "tlg") && mesh.material instanceof StandardMaterial) {
+      const on = (mesh.name === "tlr" && phase === 0) || (mesh.name === "tly" && phase === 1) || (mesh.name === "tlg" && phase === 2);
+      const c = mesh.name === "tlr" ? new Color3(1, 0.16, 0.14) : mesh.name === "tly" ? new Color3(1, 0.78, 0.2) : new Color3(0.2, 0.85, 0.32);
+      mesh.material.emissiveColor = on ? c : c.scale(0.08);
     }
   }
 }
