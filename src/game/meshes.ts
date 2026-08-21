@@ -905,14 +905,14 @@ export function makePed(scene: Scene, seed: number): Mesh {
   const pool = woman ? WOMAN_KITS : PED_KITS;
   const k = pool[Math.abs(seed | 0) % pool.length];
   const sx = woman ? 0.88 + ((Math.abs(seed * 11) % 7) * 0.012) : 0.9 + ((Math.abs(seed * 13) % 9) * 0.02);
-  const sy = woman ? 0.96 + ((Math.abs(seed * 5) % 5) * 0.01) : 0.92 + ((Math.abs(seed * 7) % 7) * 0.015);
+  const sy = woman ? 1.0 + ((Math.abs(seed * 5) % 5) * 0.008) : 0.92 + ((Math.abs(seed * 7) % 7) * 0.015);
   return assemblePerson(scene, { ...k, name: "ped" + seed, sx, sy, neck: 0.13 + (seed % 3) * 0.015 });
 }
 
 export function makeWoman(scene: Scene, seed: number, night = false): Mesh {
   const k = WOMAN_KITS[Math.abs(seed | 0) % WOMAN_KITS.length];
-  const sx = 0.88 + ((Math.abs(seed * 9) % 6) * 0.012);
-  const sy = 0.97 + ((Math.abs(seed * 3) % 4) * 0.012);
+  const sx = 0.9 + ((Math.abs(seed * 9) % 6) * 0.01);
+  const sy = 1.01 + ((Math.abs(seed * 3) % 4) * 0.008);
   return assemblePerson(scene, {
     ...k,
     name: (night ? "night" : "woman") + seed,
@@ -929,8 +929,8 @@ export function makeDancer(scene: Scene, seed: number): Mesh {
   return assemblePerson(scene, {
     ...k,
     name: "dancer" + seed,
-    sx: 0.9,
-    sy: 0.98,
+    sx: 0.92,
+    sy: 1.02,
     neck: 0.12,
     crop: true,
     heels: true,
@@ -1105,6 +1105,44 @@ export function placeSilk(mesh: Mesh, ax: number, ay: number, az: number, bx: nu
   } else {
     mesh.rotationQuaternion = null;
     mesh.rotation.set(0, 0, 0);
+  }
+}
+
+export function tickDownPose(mesh: Mesh) {
+  mesh.rotation.x = 1.52;
+  mesh.rotation.z = 0.16;
+  mesh.position.y = 0.22;
+  for (const ch of mesh.getChildMeshes(false)) {
+    if (ch.name === "larm") { ch.rotation.x = -0.35; ch.rotation.z = -0.2; }
+    else if (ch.name === "rarm") { ch.rotation.x = 0.45; ch.rotation.z = 0.15; }
+    else if (ch.name === "lleg") { ch.rotation.x = 0.28; ch.rotation.z = -0.06; }
+    else if (ch.name === "rleg") { ch.rotation.x = -0.18; ch.rotation.z = 0.08; }
+  }
+}
+
+export function tickSitPose(mesh: Mesh, t: number) {
+  mesh.position.y = 0.42;
+  mesh.rotation.x = 0.18;
+  mesh.rotation.z = Math.sin(t * 1.6) * 0.03;
+  for (const ch of mesh.getChildMeshes(false)) {
+    if (ch.name === "lleg") { ch.rotation.x = 1.18; ch.rotation.z = -0.08; }
+    else if (ch.name === "rleg") { ch.rotation.x = 1.12; ch.rotation.z = 0.08; }
+    else if (ch.name === "larm") { ch.rotation.x = -0.35; ch.rotation.z = -0.12; }
+    else if (ch.name === "rarm") { ch.rotation.x = -0.28; ch.rotation.z = 0.1; }
+  }
+}
+
+export function tickLapDancePose(mesh: Mesh, t: number) {
+  const sway = Math.sin(t * 4.2) * 0.38;
+  const hip = Math.sin(t * 8.4) * 0.28;
+  mesh.rotation.z = sway * 0.55;
+  mesh.rotation.x = 0.22 + Math.abs(Math.sin(t * 4.2)) * 0.12;
+  mesh.position.y = 0.55 + Math.abs(Math.sin(t * 8.4)) * 0.08;
+  for (const ch of mesh.getChildMeshes(false)) {
+    if (ch.name === "larm") { ch.rotation.x = -2.25 + sway; ch.rotation.z = -0.55; }
+    else if (ch.name === "rarm") { ch.rotation.x = -1.15 - sway * 0.6; ch.rotation.z = 0.7; }
+    else if (ch.name === "lleg") { ch.rotation.x = 0.55 + hip; ch.rotation.z = -0.18; }
+    else if (ch.name === "rleg") { ch.rotation.x = 0.35 - hip; ch.rotation.z = 0.22; }
   }
 }
 

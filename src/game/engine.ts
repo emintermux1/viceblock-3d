@@ -17,7 +17,7 @@ import {
 import type { Input } from "./input";
 import {
   findNamed, flareTex, lookDir, makeBouncer, makeCar, makeCop, makeDancer, makeHero, makePed, makeSilk, makeWoman, mat, placeSilk,
-  setGunHolstered, tickClimbPose, tickDancePose, tickGunPose, tickSwingPose, tickWalk,
+  setGunHolstered, tickClimbPose, tickDancePose, tickDownPose, tickGunPose, tickLapDancePose, tickSitPose, tickSwingPose, tickWalk,
 } from "./meshes";
 import {
   nearestWall, pickAnchor, standY, stepAir, stepSwing, stepZip, type Anchor, type SwingRope,
@@ -63,6 +63,8 @@ export class ViceGame {
   private climbLock = 0;
   private clubEntered = false;
   private clubPing!: Mesh;
+  private danceWith: Ped | null = null;
+  private danceT = 0;
   private silk!: Mesh;
   private aimOrb!: Mesh;
   private assistMark!: Mesh;
@@ -365,18 +367,18 @@ export class ViceGame {
         color: "#ff4da6", role: "dancer", callT: 0, waitT: 0,
       });
     }
-    const hosts: [number, number][] = [
-      [INT.club.ox - 3.2, INT.club.oz - 1.4],
-      [INT.club.ox + 2.4, INT.club.oz + 0.6],
-      [INT.club.ox - 1.2, INT.club.oz + 2.2],
+    const hosts: [number, number, PedState][] = [
+      [INT.club.ox - 5.4, INT.club.oz - 1.2, "sit"],
+      [INT.club.ox + 2.4, INT.club.oz + 0.6, "wander"],
+      [INT.club.ox - 1.2, INT.club.oz + 2.2, "wander"],
     ];
     for (let i = 0; i < hosts.length; i++) {
-      const [x, z] = hosts[i];
+      const [x, z, state] = hosts[i];
       const mesh = makeWoman(this.scene, 20 + i, true);
       mesh.position.set(x, 0, z);
       this.peds.push({
-        mesh, x, z, yaw: 0, hp: 40,
-        state: "wander", tx: x, tz: z, downT: 0,
+        mesh, x, z, yaw: state === "sit" ? Math.PI / 2 : 0, hp: 40,
+        state, tx: x, tz: z, downT: 0,
         color: "#ff4da6", role: "hostess", callT: 0, waitT: 0,
       });
     }
@@ -423,8 +425,9 @@ export class ViceGame {
       }
     }
 
+    if (this.input.enterPressed && this.enterLock <= 0) this.tryUseF();
+
     if (this.interior === "jail") {
-      if (this.input.enterPressed && this.enterLock <= 0) this.tryEnterExit();
       this.tickJail(dt);
       this.walkFree(dt, 0.7);
       this.finishMove();
@@ -457,8 +460,12 @@ export class ViceGame {
     const p = this.player;
     const ins = this.input;
 
+    if (this.danceWith) {
+      this.stepDance(dt);
+      return;
+    }
+
     if (this.drive) {
-      if (ins.enterPressed && this.enterLock <= 0) this.tryEnterExit();
       if (this.drive) this.driveCar(dt);
       this.silk.setEnabled(false);
       this.aim = null;
@@ -476,11 +483,7 @@ export class ViceGame {
     }
 
     const nearCar = this.nearestCar(3.2);
-    const streetBin = !!nearCar && this.mode === "ground" && p.y < 1.35;
-    if (streetBin && this.enterLock <= 0 && ins.enterPressed) {
-      this.tryEnterExit();
-      if (this.drive) return;
-    }
+    const streetBin = !!nearCar && this.mode === "ground" && p.y < 1.35 && !this.nearClubEnter();
 
     this.aim = pickAnchor(
       p.x, p.y + 1.05, p.z, p.vx, p.vy, p.vz,
@@ -516,8 +519,9 @@ export class ViceGame {
       return;
     }
 
+    const fIsVerb = this.nearClubEnter() || this.nearDoor() !== null || !!this.nearDancePed();
     const wantSwing = ins.salinHeld
-      || (!streetBin && ins.swingHeld)
+      || (!streetBin && !fIsVerb && ins.swingHeld)
       || (ins.jumpHeld && this.mode !== "ground");
     if (ins.zipPressed && this.aim) {
       this.zipTo = { ...this.aim };
@@ -969,11 +973,10 @@ export class ViceGame {
     car.hp = car.body;
     this.paintCar(car);
     if (car.body < 45) this.ensureSmoke(car);
-    const hardBoom = heavy && car.body < 8 && car.engineHp < 10 && Math.abs(car.speed) > 12;
     if (car.body <= 0) {
       car.wrecked = true;
       car.speed = 0;
-      if (hardBoom) this.explodeCar(car);
+      this.explodeCar(car);
       if (this.drive === car) {
         this.player.health -= 18;
         this.lastCombat = this.time;
@@ -1040,7 +1043,8 @@ export class ViceGame {
     car.smoke = ps;
   }
 
-  private tryEnterExit() {
+  private tryUseF() {
+    if (this.enterLock > 0) return;
     if (this.interior === "jail") {
       if (this.cash >= BAIL) {
         this.cash -= BAIL;
@@ -1052,32 +1056,37 @@ export class ViceGame {
       this.eject();
       return;
     }
+    if (this.danceWith) {
+      this.stopDance();
+      return;
+    }
     if (this.interior !== "street") {
       const room = this.city.interiors[this.interior];
-      if (dist2(this.player.x, this.player.z, room.exitX, room.exitZ) < 2.4) {
+      if (dist2(this.player.x, this.player.z, room.exitX, room.exitZ) < 3.8) {
         this.leaveInterior();
         return;
       }
-    }
-    if (this.tryRico()) return;
-    let best: Car | null = null;
-    let bestD = 3.4;
-    for (const c of this.cars) {
-      if (c.wrecked || c.flow) continue;
-      const d = dist2(this.player.x, this.player.z, c.x, c.z);
-      if (d < bestD) { bestD = d; best = c; }
-    }
-    if (best && this.interior === "street") {
-      this.enterCar(best);
+      if (this.interior === "club" && this.tryStartDance()) return;
       return;
     }
-    if (this.interior === "street") {
-      const mart = this.city.interiors.mart;
-      const gar = this.city.interiors.garage;
-      if (this.nearClubEnter()) this.enterInterior("club");
-      else if (dist2(this.player.x, this.player.z, mart.doorX, mart.doorZ) < 2.6) this.enterInterior("mart");
-      else if (dist2(this.player.x, this.player.z, gar.doorX, gar.doorZ) < 2.8) this.enterInterior("garage");
+    if (this.nearClubEnter()) {
+      this.enterInterior("club");
+      return;
     }
+    if (this.tryStartDance()) return;
+    const mart = this.city.interiors.mart;
+    const gar = this.city.interiors.garage;
+    if (dist2(this.player.x, this.player.z, mart.doorX, mart.doorZ) < 2.6) {
+      this.enterInterior("mart");
+      return;
+    }
+    if (dist2(this.player.x, this.player.z, gar.doorX, gar.doorZ) < 2.8) {
+      this.enterInterior("garage");
+      return;
+    }
+    if (this.tryRico()) return;
+    const best = this.nearestCar(3.4);
+    if (best) this.enterCar(best);
   }
 
   private enterCar(best: Car) {
@@ -1102,13 +1111,38 @@ export class ViceGame {
       }
     }
     this.interior = id;
-    if (id === "club") this.clubEntered = true;
+    if (id === "club") {
+      this.clubEntered = true;
+      this.ensureClubVolume();
+      this.camYaw = 0;
+      this.camPitch = 0.12;
+    }
     this.player.x = room.spawnX;
     this.player.z = room.spawnZ;
     this.player.y = 0;
+    this.player.vx = 0;
+    this.player.vz = 0;
+    this.player.vy = 0;
+    this.mode = "ground";
     this.camDist = room.camDist;
-    this.enterLock = 0.3;
+    this.enterLock = 0.28;
+    this.rope = null;
+    this.zipTo = null;
+    this.silk.setEnabled(false);
     resolveCapsule(this.player, room.colliders, PLAYER_R);
+  }
+
+  private ensureClubVolume() {
+    const room = this.city.interiors.club;
+    if (room.colliders.length >= 3) return;
+    const cx = INT.club.ox;
+    const cz = INT.club.oz;
+    room.colliders.push(
+      { minX: cx - 9, maxX: cx + 9, minZ: cz + 7.6, maxZ: cz + 8.2, minY: 0, maxY: 5.2 },
+      { minX: cx - 9, maxX: cx + 9, minZ: cz - 8.2, maxZ: cz - 7.6, minY: 0, maxY: 5.2 },
+      { minX: cx + 8.4, maxX: cx + 9, minZ: cz - 8, maxZ: cz + 8, minY: 0, maxY: 5.2 },
+      { minX: cx - 9, maxX: cx - 8.4, minZ: cz - 8, maxZ: cz + 8, minY: 0, maxY: 5.2 },
+    );
   }
 
   private leaveInterior() {
@@ -1119,6 +1153,7 @@ export class ViceGame {
       this.parkedRepair.z = LOC.garage.z + 8;
       this.parkedRepair = null;
     }
+    this.stopDance();
     this.player.x = room.streetX;
     this.player.z = room.streetZ;
     this.player.y = 0;
@@ -1208,6 +1243,7 @@ export class ViceGame {
   }
 
   private combat(dt: number) {
+    if (this.danceWith) { void dt; return; }
     if (this.input.meleePressed && this.player.meleeT <= 0 && !this.drive) {
       this.player.meleeT = MELEE_CD;
       sharedSfx.punch();
@@ -1223,8 +1259,8 @@ export class ViceGame {
   }
 
   private canAimAssist(): boolean {
-    if (this.drive) return false;
-    if (this.interior !== "street") return false;
+    if (this.drive || this.danceWith) return false;
+    if (this.interior === "jail") return false;
     if (this.mode === "swing" || this.mode === "zip" || this.mode === "crawl") return false;
     return true;
   }
@@ -1266,13 +1302,13 @@ export class ViceGame {
     const stickyId = this.assistStick > 0 && this.assistHit ? this.assistHit.id : null;
     const list: AssistHit[] = [];
     for (const p of this.peds) {
-      if (p.state === "down" || p.state === "webbed") continue;
+      if (p.state === "down") continue;
       if (p.role === "clerk" || p.role === "fence") continue;
-      list.push({ kind: "ped", id: p.mesh.uniqueId, x: p.x, y: 0.95, z: p.z, r: 0.55 });
+      list.push({ kind: "ped", id: p.mesh.uniqueId, x: p.x, y: 0.95, z: p.z, r: 0.7 });
     }
     for (const c of this.cops) {
-      if (c.state === "down" || c.state === "webbed") continue;
-      list.push({ kind: "cop", id: c.mesh.uniqueId, x: c.x, y: 0.95, z: c.z, r: 0.55 });
+      if (c.state === "down") continue;
+      list.push({ kind: "cop", id: c.mesh.uniqueId, x: c.x, y: 0.95, z: c.z, r: 0.7 });
     }
     for (const car of this.cars) {
       if (car.wrecked || this.drive === car) continue;
@@ -1310,18 +1346,22 @@ export class ViceGame {
         const t = this.rayAABB(origin, dir, b);
         if (t > 0.2 && t < hitT) { hitT = t; hitPed = null; hitCop = null; hitCar = null; }
       }
+    } else {
+      for (const b of this.worldCols()) {
+        const t = this.rayAABB(origin, dir, b);
+        if (t > 0.2 && t < hitT) { hitT = t; hitPed = null; hitCop = null; hitCar = null; }
+      }
     }
     for (const p of this.peds) {
-      if (p.state === "down" || p.state === "webbed") continue;
+      if (p.state === "down") continue;
       if (p.role === "clerk" || p.role === "fence") continue;
-      if (this.interior !== "street") continue;
-      const t = this.raySphere(origin, dir, p.x, 0.9, p.z, 0.7);
-      if (t > 0.2 && t < hitT) { hitT = t; hitPed = p; hitCop = null; hitCar = null; }
+      const t = this.raySphere(origin, dir, p.x, 0.95, p.z, 0.95);
+      if (t > 0.15 && t < hitT) { hitT = t; hitPed = p; hitCop = null; hitCar = null; }
     }
     for (const c of this.cops) {
-      if (c.state === "down" || c.state === "webbed" || this.interior !== "street") continue;
-      const t = this.raySphere(origin, dir, c.x, 0.9, c.z, 0.7);
-      if (t > 0.2 && t < hitT) { hitT = t; hitPed = null; hitCop = c; hitCar = null; }
+      if (c.state === "down") continue;
+      const t = this.raySphere(origin, dir, c.x, 0.95, c.z, 0.95);
+      if (t > 0.15 && t < hitT) { hitT = t; hitPed = null; hitCop = c; hitCar = null; }
     }
     if (this.interior === "street") {
       for (const car of this.cars) {
@@ -1333,15 +1373,21 @@ export class ViceGame {
     const end = origin.add(dir.scale(hitT));
     this.spawnShotVfx(origin, end, dir);
     this.spawnSpark(end);
-    if (hitPed) this.webTarget(hitPed, false);
-    if (hitCop) this.webTarget(hitCop, true);
-    if (hitCar) this.hurtCar(hitCar, GUN_DMG * 0.42, false);
+    if (hitPed) {
+      this.hurtPed(hitPed, GUN_DMG);
+      if (hitPed.hp > 0) this.webTarget(hitPed, false);
+    }
+    if (hitCop) {
+      this.hurtCop(hitCop, GUN_DMG);
+      if (hitCop.hp > 0) this.webTarget(hitCop, true);
+    }
+    if (hitCar) this.hurtCar(hitCar, GUN_DMG * 0.85, true);
     if (hitPed || hitCop || hitCar) this.notifyCrime(this.player.x, this.player.z, "gun");
   }
 
   private shotDir(origin: Vector3): Vector3 {
-    const raw = lookDir(this.camYaw, this.camPitch * 0.45);
-    raw.y = Math.max(-0.12, raw.y);
+    const raw = lookDir(this.camYaw, this.camPitch * 0.7);
+    raw.y = clamp(raw.y, -0.48, 0.55);
     raw.normalize();
     const assist = this.canAimAssist() ? this.assistHit : null;
     if (!assist) return raw;
@@ -1444,32 +1490,37 @@ export class ViceGame {
   }
 
   private hurtPed(p: Ped, dmg: number) {
+    if (p.state === "down") return;
     p.hp -= dmg;
     this.lastCombat = this.time;
+    if (this.danceWith === p) this.stopDance();
     if (p.hp <= 0) {
+      p.hp = 0;
       p.state = "down";
-      p.downT = 8;
-      p.mesh.rotation.x = Math.PI / 2;
-      p.mesh.position.y = 0.3;
+      p.downT = 999;
+      this.stuns += 1;
+      tickDownPose(p.mesh);
     } else if (p.role !== "clerk" && p.role !== "fence") p.state = "flee";
   }
 
   private hurtCop(c: Cop, dmg: number) {
+    if (c.state === "down") return;
     c.hp -= dmg;
     this.lastCombat = this.time;
     this.lastSeen = this.time;
-    this.addStar(c.state === "down" ? 0 : 1);
+    this.addStar(1);
     if (c.hp <= 0) {
+      c.hp = 0;
       c.state = "down";
-      c.downT = 10;
-      c.mesh.rotation.x = Math.PI / 2;
-      c.mesh.position.y = 0.3;
+      c.downT = 999;
+      this.stuns += 1;
+      tickDownPose(c.mesh);
       this.addStar(1);
     }
   }
 
   private notifyCrime(x: number, z: number, kind: "jack" | "gun" | "melee") {
-    if (this.interior !== "street") return;
+    if (this.interior !== "street" && this.interior !== "club") return;
     for (const c of this.cops) {
       if (c.state === "down" || c.state === "webbed") continue;
       const d = dist2(c.x, c.z, x, z);
@@ -1614,8 +1665,11 @@ export class ViceGame {
     for (const p of this.peds) {
       if (p.state === "down") {
         p.downT -= dt;
+        tickDownPose(p.mesh);
+        p.mesh.position.set(p.x, 0.22, p.z);
         continue;
       }
+      if (this.danceWith === p) continue;
       if (p.state === "webbed") {
         p.downT -= dt;
         p.mesh.position.set(p.x, 0, p.z);
@@ -1641,13 +1695,19 @@ export class ViceGame {
         tickWalk(p.mesh, this.time, false);
         continue;
       }
-      if (p.role === "dancer") {
+      if (p.role === "dancer" && p.state !== "flee") {
         p.mesh.position.set(p.x, 0.22, p.z);
         p.mesh.rotation.y = p.yaw + Math.sin(this.time * 0.7) * 0.35;
         tickDancePose(p.mesh, this.time + p.x);
         continue;
       }
-      if (p.role === "hostess") {
+      if (p.role === "hostess" && p.state !== "flee") {
+        if (p.state === "sit") {
+          p.mesh.position.set(p.x, 0, p.z);
+          p.mesh.rotation.y = p.yaw;
+          tickSitPose(p.mesh, this.time);
+          continue;
+        }
         if (dist2(p.x, p.z, p.tx, p.tz) < 0.6) {
           p.tx = INT.club.ox + (Math.random() - 0.5) * 10;
           p.tz = INT.club.oz + (Math.random() - 0.5) * 8;
@@ -1741,6 +1801,8 @@ export class ViceGame {
     for (const c of this.cops) {
       if (c.state === "down") {
         c.downT -= dt;
+        tickDownPose(c.mesh);
+        c.mesh.position.set(c.x, 0.22, c.z);
         continue;
       }
       if (c.state === "webbed") {
@@ -1793,6 +1855,7 @@ export class ViceGame {
   }
 
   private hasLOS(ax: number, az: number, bx: number, bz: number): boolean {
+    if (this.interior !== "street") return true;
     const o = new Vector3(ax, 1.2, az);
     const d = new Vector3(bx - ax, 0, bz - az);
     const len = d.length();
@@ -1984,6 +2047,8 @@ export class ViceGame {
     if (this.drive) {
       this.silk.setEnabled(false);
       this.aimOrb.setEnabled(false);
+    } else if (this.danceWith) {
+      tickSitPose(this.playerMesh, this.time);
     } else if (this.mode === "crawl") {
       const climbing = this.input.climbHeld || this.input.moveY < -0.12;
       tickClimbPose(this.playerMesh, this.time, climbing);
@@ -2137,29 +2202,38 @@ export class ViceGame {
       }
     }
     if (this.drive) this.prompt = "F / BİN  İN";
-    else if (nearCar && this.mode === "ground" && this.player.y < 1.35) {
+    else if (this.danceWith) this.prompt = "F  ÇIK";
+    else if (nearCar && this.mode === "ground" && this.player.y < 1.35 && !this.nearClubEnter()) {
       this.prompt = "F / BİN";
-    }     else if (this.mode === "crawl") this.prompt = "SPACE  ZIPLA    C  TIRMAN  DROP";
+    } else if (this.mode === "crawl") this.prompt = "SPACE  ZIPLA    C  TIRMAN  DROP";
     else if (canClimb && this.mode === "ground") this.prompt = this.prompt || "C  TIRMAN";
     const door = this.nearDoor();
     if (door === "enter") this.prompt = "F  GİR";
     else if (door === "exit") this.prompt = "F  ÇIK";
+    else if (!this.danceWith && this.nearDancePed()) this.prompt = "F  DANS";
   }
 
   private nearClubEnter(): boolean {
-    if (this.drive || this.mode !== "ground" || this.interior !== "street") return false;
+    if (this.drive || this.interior !== "street") return false;
+    if (this.player.y > 2.4) return false;
     const room = this.city.interiors.club;
-    if (dist2(this.player.x, this.player.z, room.doorX, room.doorZ) < 5.8) return true;
+    if (dist2(this.player.x, this.player.z, room.doorX, room.doorZ) < 8.2) return true;
     const south = LOC.club.z - CLUB_SIZE.d * 0.5;
-    return Math.abs(this.player.x - LOC.club.x) < 9
-      && this.player.z > south - 5.6
-      && this.player.z < south + 1.4;
+    const west = LOC.club.x - CLUB_SIZE.w * 0.5;
+    const southWalk = Math.abs(this.player.x - LOC.club.x) < 10.5
+      && this.player.z > south - 7.2
+      && this.player.z < south + 2.2;
+    const westWalk = this.player.x > west - 6.5
+      && this.player.x < west + 1.6
+      && Math.abs(this.player.z - LOC.club.z) < 8.5;
+    return southWalk || westWalk;
   }
 
   private nearDoor(): "enter" | "exit" | null {
-    if (this.drive || this.mode !== "ground") return null;
+    if (this.drive) return null;
     if (this.interior === "street") {
       if (this.nearClubEnter()) return "enter";
+      if (this.mode !== "ground") return null;
       const rooms = [this.city.interiors.mart, this.city.interiors.garage];
       for (const room of rooms) {
         if (dist2(this.player.x, this.player.z, room.doorX, room.doorZ) < 2.8) return "enter";
@@ -2168,8 +2242,105 @@ export class ViceGame {
     }
     if (this.interior === "jail") return null;
     const room = this.city.interiors[this.interior];
-    if (dist2(this.player.x, this.player.z, room.exitX, room.exitZ) < 2.4) return "exit";
+    if (dist2(this.player.x, this.player.z, room.exitX, room.exitZ) < 3.8) return "exit";
     return null;
+  }
+
+  private clubBooths(): { x: number; z: number; yaw: number }[] {
+    return [
+      { x: INT.club.ox - 5.4, z: INT.club.oz - 1.2, yaw: Math.PI / 2 },
+      { x: INT.club.ox - 5.4, z: INT.club.oz + 1.6, yaw: Math.PI / 2 },
+    ];
+  }
+
+  private nearBooth(): { x: number; z: number; yaw: number } | null {
+    if (this.interior !== "club") return null;
+    for (const b of this.clubBooths()) {
+      if (dist2(this.player.x, this.player.z, b.x, b.z) < 2.6) return b;
+    }
+    return null;
+  }
+
+  private nearDancePed(): Ped | null {
+    if (this.drive) return null;
+    let best: Ped | null = null;
+    let bestD = this.interior === "club" ? 2.8 : 2.2;
+    for (const p of this.peds) {
+      if (p.state === "down" || p.state === "flee" || p.state === "webbed") continue;
+      if (p.role !== "dancer" && p.role !== "hostess" && p.role !== "nightlife") continue;
+      const d = dist2(this.player.x, this.player.z, p.x, p.z);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    if (best) return best;
+    if (this.nearBooth()) {
+      for (const p of this.peds) {
+        if (p.role !== "hostess" && p.role !== "dancer") continue;
+        if (p.state === "down" || p.state === "flee") continue;
+        return p;
+      }
+    }
+    return null;
+  }
+
+  private tryStartDance(): boolean {
+    const her = this.nearDancePed();
+    if (!her) return false;
+    const booth = this.nearBooth();
+    const seatX = booth ? booth.x : this.player.x;
+    const seatZ = booth ? booth.z : this.player.z;
+    const yaw = booth ? booth.yaw : this.player.yaw;
+    this.player.x = seatX;
+    this.player.z = seatZ;
+    this.player.y = 0.42;
+    this.player.vx = 0;
+    this.player.vz = 0;
+    this.player.vy = 0;
+    this.player.yaw = yaw;
+    this.camYaw = yaw;
+    this.mode = "ground";
+    her.x = seatX + Math.sin(yaw) * 0.62;
+    her.z = seatZ + Math.cos(yaw) * 0.62;
+    her.yaw = yaw + Math.PI;
+    her.state = "sit";
+    this.danceWith = her;
+    this.danceT = 8.5;
+    this.enterLock = 0.28;
+    this.camDist = 4.4;
+    return true;
+  }
+
+  private stopDance() {
+    const her = this.danceWith;
+    if (her && her.state === "sit" && her.hp > 0) her.state = "wander";
+    this.danceWith = null;
+    this.danceT = 0;
+    this.player.y = 0;
+    this.enterLock = 0.28;
+    this.camDist = this.interior === "club" ? 6.4 : 8.2;
+  }
+
+  private stepDance(dt: number) {
+    const her = this.danceWith;
+    if (!her || her.state === "down" || her.state === "flee") {
+      this.stopDance();
+      return;
+    }
+    this.danceT -= dt;
+    const moving = Math.hypot(this.input.moveX, this.input.moveY) > 0.22;
+    if (moving || this.danceT <= 0) {
+      this.stopDance();
+      return;
+    }
+    this.player.vx = 0;
+    this.player.vz = 0;
+    this.player.vy = 0;
+    this.player.grounded = true;
+    this.playerMesh.setEnabled(true);
+    this.silk.setEnabled(false);
+    tickSitPose(this.playerMesh, this.time);
+    her.mesh.position.set(her.x, 0, her.z);
+    her.mesh.rotation.y = her.yaw;
+    tickLapDancePose(her.mesh, this.time);
   }
 
   private circleHitsCols(x: number, z: number, r: number, cols: AABB[]): boolean {
@@ -2224,10 +2395,19 @@ export class ViceGame {
     h.canAttach = !!this.aim && !this.drive;
     h.nearCar = !!this.nearestCar(3.2) && this.mode === "ground" && this.player.y < 1.35 && !this.drive;
     h.nearDoor = this.nearDoor() !== null;
-    h.canClimb = !this.drive && (
+    h.canClimb = !this.drive && !this.danceWith && (
       this.mode === "crawl"
       || !!nearestWall(this.player.x, Math.max(0.35, this.player.y + 0.4), this.player.z, this.city.colliders, 1.85)
     );
+    h.nearDance = !this.drive && !this.danceWith && !!this.nearDancePed();
+    h.inDance = !!this.danceWith;
+    if (this.drive) h.enterVerb = "BİN";
+    else if (this.danceWith) h.enterVerb = "ÇIK";
+    else if (this.nearDoor() === "enter") h.enterVerb = "GİR";
+    else if (this.nearDoor() === "exit") h.enterVerb = "ÇIK";
+    else if (h.nearDance) h.enterVerb = "DANS";
+    else if (h.nearCar) h.enterVerb = "BİN";
+    else h.enterVerb = "";
     h.clubPing = !this.clubEntered && this.interior === "street";
     if (h.clubPing) {
       const d = Math.round(dist2(this.player.x, this.player.z, LOC.club.x, LOC.club.z - CLUB_SIZE.d * 0.5));
