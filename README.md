@@ -18,6 +18,7 @@ This is an original dusk-vice web-slinger, not a Marvel / Sony title. The hero i
 - Combat still web-stuns, yanks, and melee / air-takedown. Heat is local stars; swinging high drops it
 - Dusk South Docks lighting with warm sodium, teal water bounce, magenta neon, wet asphalt, fabric lattice suits, and metal guns
 - Authored street dressing: VICEBLOCK / Nova City / South Docks plates and neon, shop awnings, window AC, rooftop tanks, drooping wires, painted tags, traffic lights, steam, dust, birds, and flowing traffic. Pedestrians idle and walk. Landings settle the camera. Silk sags on the line.
+- SALT GLOW nightclub on the strip (between VICE and RICO'S, north of spawn). Tap F / GİR at the door. Stage, pole, bar, booths, DJ, pink wash, dancers and hostesses inside. Adult nightlife walkers on the sidewalk. Muffled bass near the door, louder inside.
 - Desktop: mouse look without pointer lock. Phone: left stick, right look, SALIN / ZIP / ATEŞ, plus TIRMAN and BİN when they apply
 - Title → character select → South Docks
 - Radio + web / whoosh / impact if `public/audio` files are present (generated MP3s)

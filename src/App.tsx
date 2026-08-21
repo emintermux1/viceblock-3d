@@ -112,6 +112,7 @@ function Shell() {
             hidden={!touch || paused}
             onPause={() => setPaused(true)}
             nearCar={hud.nearCar}
+            nearDoor={hud.nearDoor}
             inCar={hud.inCar}
             canClimb={hud.canClimb}
           />

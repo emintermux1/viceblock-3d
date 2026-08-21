@@ -620,7 +620,7 @@ export function makeCar(scene: Scene, color: string, kind: "hatch" | "sedan" | "
   return root;
 }
 
-type Hair = "beanie" | "messy" | "bun" | "cap" | "short" | "peak";
+type Hair = "beanie" | "messy" | "bun" | "cap" | "short" | "peak" | "long";
 
 type Kit = {
   name: string;
@@ -646,6 +646,7 @@ type Kit = {
   vest?: string;
   mask?: boolean;
   lens?: string;
+  heels?: boolean;
 };
 
 function limb(scene: Scene, root: Mesh, name: string, x: number, y: number, dia: number, h: number, hex: string): Mesh {
@@ -709,6 +710,12 @@ function hairOn(scene: Scene, root: Mesh, style: Hair, hex: string, headY: numbe
       c.parent = root;
       break;
     }
+    case "long": {
+      box(scene, root, "h1", 0.34, 0.16, 0.28, 0, headY + 0.16, 0.02, hex);
+      box(scene, root, "h2", 0.3, 0.42, 0.16, 0, headY - 0.12, -0.12, hex);
+      box(scene, root, "bang", 0.3, 0.07, 0.12, 0, headY + 0.1, 0.16, hex);
+      break;
+    }
     default: {
       const _never: never = style;
       void _never;
@@ -764,8 +771,15 @@ function assemblePerson(scene: Scene, kit: Kit): Mesh {
   limb(scene, root, "rarm", tw * 0.5 + 0.08, torsoY + th * 0.35, 0.13, armH, kit.torso);
   const ll = limb(scene, root, "lleg", -0.14 * sx, hipY, 0.17, legH, kit.legs);
   const rl = limb(scene, root, "rleg", 0.14 * sx, hipY, 0.17, legH, kit.legs);
-  box(scene, ll, "shoe", 0.18, 0.1, 0.28, 0, -legH - 0.02, 0.04, kit.shoes);
-  box(scene, rl, "shoe", 0.18, 0.1, 0.28, 0, -legH - 0.02, 0.04, kit.shoes);
+  if (kit.heels) {
+    box(scene, ll, "shoe", 0.16, 0.08, 0.26, 0, -legH - 0.02, 0.06, kit.shoes);
+    box(scene, rl, "shoe", 0.16, 0.08, 0.26, 0, -legH - 0.02, 0.06, kit.shoes);
+    cyl(scene, ll, "heel", 0.1, 0.05, 0, -legH - 0.12, -0.06, kit.shoes, 6);
+    cyl(scene, rl, "heel", 0.1, 0.05, 0, -legH - 0.12, -0.06, kit.shoes, 6);
+  } else {
+    box(scene, ll, "shoe", 0.18, 0.1, 0.28, 0, -legH - 0.02, 0.04, kit.shoes);
+    box(scene, rl, "shoe", 0.18, 0.1, 0.28, 0, -legH - 0.02, 0.04, kit.shoes);
+  }
   if (kit.shorts) {
     box(scene, ll, "calf", 0.14, 0.32 * sy, 0.16, 0, -legH - 0.16 * sy, 0, skin);
     box(scene, rl, "calf", 0.14, 0.32 * sy, 0.16, 0, -legH - 0.16 * sy, 0, skin);
@@ -877,11 +891,52 @@ const PED_KITS: Omit<Kit, "name" | "sx" | "sy" | "neck">[] = [
   { skin: "#b08058", torso: "#203040", pelvis: "#1a2430", legs: "#1a2430", shoes: "#111114", hair: "#0a0a0a", hairStyle: "cap" },
 ];
 
+const WOMAN_KITS: Omit<Kit, "name" | "sx" | "sy" | "neck">[] = [
+  { skin: "#e8c4a0", torso: "#ff4da6", pelvis: "#1a1018", legs: "#e8c4a0", shoes: "#1a1a1a", hair: "#1a1210", hairStyle: "long", skirt: "#2a1020", crop: true, heels: true, earring: true },
+  { skin: "#c09060", torso: "#f0d080", pelvis: "#3a1828", legs: "#c09060", shoes: "#f2e6c0", hair: "#3a2010", hairStyle: "bun", skirt: "#8a2040", heels: true, earring: true },
+  { skin: "#f0d0b0", torso: "#2ef2d0", pelvis: "#102028", legs: "#f0d0b0", shoes: "#1a1a22", hair: "#f0d080", hairStyle: "long", skirt: "#143038", crop: true, heels: true, glow: "#2ef2d0" },
+  { skin: "#d4a070", torso: "#b46aff", pelvis: "#201028", legs: "#d4a070", shoes: "#2a1a18", hair: "#201810", hairStyle: "messy", skirt: "#4a2060", heels: true, chain: true },
+  { skin: "#f5d8c4", torso: "#ff8a3d", pelvis: "#3a2010", legs: "#f5d8c4", shoes: "#1a1010", hair: "#2a1820", hairStyle: "bun", skirt: "#c45a20", crop: true, heels: true, earring: true },
+  { skin: "#c4a080", torso: "#e8e0d0", pelvis: "#8a2040", legs: "#c4a080", shoes: "#f0e0e0", hair: "#4a3020", hairStyle: "long", skirt: "#c03050", heels: true },
+];
+
 export function makePed(scene: Scene, seed: number): Mesh {
-  const k = PED_KITS[Math.abs(seed | 0) % PED_KITS.length];
-  const sx = 0.9 + ((Math.abs(seed * 13) % 9) * 0.02);
-  const sy = 0.92 + ((Math.abs(seed * 7) % 7) * 0.015);
+  const woman = (Math.abs(seed) % 2) === 0;
+  const pool = woman ? WOMAN_KITS : PED_KITS;
+  const k = pool[Math.abs(seed | 0) % pool.length];
+  const sx = woman ? 0.88 + ((Math.abs(seed * 11) % 7) * 0.012) : 0.9 + ((Math.abs(seed * 13) % 9) * 0.02);
+  const sy = woman ? 0.96 + ((Math.abs(seed * 5) % 5) * 0.01) : 0.92 + ((Math.abs(seed * 7) % 7) * 0.015);
   return assemblePerson(scene, { ...k, name: "ped" + seed, sx, sy, neck: 0.13 + (seed % 3) * 0.015 });
+}
+
+export function makeWoman(scene: Scene, seed: number, night = false): Mesh {
+  const k = WOMAN_KITS[Math.abs(seed | 0) % WOMAN_KITS.length];
+  const sx = 0.88 + ((Math.abs(seed * 9) % 6) * 0.012);
+  const sy = 0.97 + ((Math.abs(seed * 3) % 4) * 0.012);
+  return assemblePerson(scene, {
+    ...k,
+    name: (night ? "night" : "woman") + seed,
+    sx,
+    sy,
+    neck: 0.12,
+    glow: night ? (k.glow || "#ff4da6") : k.glow,
+    heels: true,
+  });
+}
+
+export function makeDancer(scene: Scene, seed: number): Mesh {
+  const k = WOMAN_KITS[Math.abs(seed | 0) % WOMAN_KITS.length];
+  return assemblePerson(scene, {
+    ...k,
+    name: "dancer" + seed,
+    sx: 0.9,
+    sy: 0.98,
+    neck: 0.12,
+    crop: true,
+    heels: true,
+    earring: true,
+    glow: seed % 2 ? "#ff4da6" : "#ffc83d",
+  });
 }
 
 export function makeCop(scene: Scene): Mesh {
@@ -889,6 +944,14 @@ export function makeCop(scene: Scene): Mesh {
     name: "cop", skin: "#e8d0b8", torso: "#e8e4dc", pelvis: "#1a1e28", legs: "#1a1e28",
     shoes: "#111114", hair: "#1a2438", hairStyle: "peak", sx: 1.04, sy: 1.02, neck: 0.15,
     vest: "#1a3a88", badge: true,
+  });
+}
+
+export function makeBouncer(scene: Scene): Mesh {
+  return assemblePerson(scene, {
+    name: "bouncer", skin: "#3a2818", torso: "#121214", pelvis: "#0e0e12", legs: "#0e0e12",
+    shoes: "#111114", hair: "#1a1a1a", hairStyle: "short", sx: 1.18, sy: 1.08, neck: 0.18,
+    vest: "#1a1014",
   });
 }
 
@@ -1042,6 +1105,20 @@ export function placeSilk(mesh: Mesh, ax: number, ay: number, az: number, bx: nu
   } else {
     mesh.rotationQuaternion = null;
     mesh.rotation.set(0, 0, 0);
+  }
+}
+
+export function tickDancePose(mesh: Mesh, t: number) {
+  const sway = Math.sin(t * 3.4) * 0.22;
+  const hip = Math.sin(t * 6.8) * 0.16;
+  mesh.rotation.z = sway * 0.35;
+  mesh.rotation.x = Math.abs(Math.sin(t * 3.4)) * 0.06;
+  mesh.position.y = 0.22 + Math.abs(Math.sin(t * 6.8)) * 0.05;
+  for (const ch of mesh.getChildMeshes(false)) {
+    if (ch.name === "larm") { ch.rotation.x = -2.05 + sway; ch.rotation.z = -0.35; }
+    else if (ch.name === "rarm") { ch.rotation.x = -1.85 - sway; ch.rotation.z = 0.32; }
+    else if (ch.name === "lleg") { ch.rotation.x = 0.12 + hip; ch.rotation.z = -0.08; }
+    else if (ch.name === "rleg") { ch.rotation.x = 0.12 - hip; ch.rotation.z = 0.08; }
   }
 }
 
